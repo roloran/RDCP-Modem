@@ -193,6 +193,15 @@ The commands to control the firmware via Serial/UART are intended to be used by 
 
 - Sending an empty line or one containing only a single space will print some status information.
 
+### Tunnel Plugin Commands
+The tunnel plugin provides functionality to relay arbitrary LoRa messages via RDCP. The device listens on channel 1 for messages. If a received message contains a `DevAddr` for which tunneling is enabled, the device temporary switches to the designated tunnel channel and transmits the **full** message as payload of a RDCP message.
+
+The following additional commands are present:
+
+- `TUNNEL ADD a` adds the DevAddr `a` (8 digit hex) to the list of addresses to be tunneled. Example: `TUNNEL ADD 1A2B3C4D`
+- `TUNNEL DEL a` removes the DevAddr `a` (8 digit hex) from the list of addresses to be tunneled. Example: `TUNNEL DEL 1A2B3C4D`
+- `TUNNEL CHANNEL c` sets the channel on which tunneled messages shall be transmitted to `c` (number). Example: `TUNNEL CHANNEL 01`
+
 ## Hardware wiring and configuration for AIR radios
 
 Using or providing AIR radios requires an additional Serial connection between the hardware devices.
