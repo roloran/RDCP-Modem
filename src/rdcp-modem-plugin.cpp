@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include "rdcp-modem-plugin.h"
+#include "class/msc/msc.h"
 #include "nsa.h"
 #include "rdcp-modem-constants.h"
 #include "rdcp-modem-serial.h"
@@ -20,11 +21,80 @@
 #define MAX_TUNNEL_KEYS 256
 static uint32_t tunnel_keys[MAX_TUNNEL_KEYS];
 static size_t tunnel_keys_len = 0;
+static size_t tunnel_channel = 0;
 
 static char line_uppercase[SERIALINPUTLEN];
 static char tunnel_cmd[SERIALINPUTLEN];
 
 extern nsa_global nsa;
+extern lora_channel_config lora_channel[];
+
+typedef enum {
+  SF_7 = 0,
+  SF_8,
+  SF_9,
+  SF_10,
+  SF_11,
+  SF_12,
+  SF_COUNT,
+} spreading_factor_t;
+
+typedef enum {
+  BW_125 = 0,
+  BW_250,
+  BW_COUNT,
+} bandwidth_t;
+
+// We ignore DR_7 because it uses FSK instead of LoRa
+typedef enum {
+  DR_0 = 0,
+  DR_1,
+  DR_2,
+  DR_3,
+  DR_4,
+  DR_5,
+  DR_6,
+  DR_COUNT,
+} data_rate_t;
+
+// 255/DR_COUNT -> means unsupported configuration
+static const data_rate_t DATA_RATE_TABLE[SF_COUNT][BW_COUNT] = {
+  /* BW 125, BW 250 */ 
+  { DR_5,     DR_6 }, /* SF7  (populate with real values) */
+  { DR_4, DR_COUNT }, /* SF8 */
+  { DR_3, DR_COUNT }, /* SF9 */
+  { DR_2, DR_COUNT }, /* SF10 */
+  { DR_1, DR_COUNT }, /* SF11 */
+  { DR_0, DR_COUNT }  /* SF12 */
+};
+
+static const uint8_t FRM_PAYLOAD_TABLE[DR_COUNT] = {
+  51,   /* DR_0 */
+  51,   /* DR_1 */
+  51,   /* DR_2 */
+  115,  /* DR_3 */
+  222,  /* DR_4 */
+  222,  /* DR_5 */
+  222,  /* DR_6 */
+};
+
+/**
+ * Return the FRM payload size given a known spreading factor and bandwidth.
+ * 0 is returned in case there is not defined payload size for the argument combination.
+ * The values returned are based on the LoRaWAN 1.0.3 Region specification
+ */
+uint8_t frm_payload_for_config(int sf, int bw){
+  if (sf < 7 || sf > 12) return 0;
+  int bandwith;
+  if (bw == 125) bandwith = BW_125;
+  else if (bw == 250) bandwith = BW_250;
+  else return 0; 
+
+  data_rate_t dr = DATA_RATE_TABLE[sf - 7][bandwith];
+
+  if (dr == DR_COUNT) return 0;
+  return FRM_PAYLOAD_TABLE[dr];
+}
 
 bool tunnel_key_contains(uint32_t key){
   size_t low = 0, high = tunnel_keys_len;
@@ -137,6 +207,10 @@ bool plugin_serial(const char* line)
         res? serial_writeln("DevAddr removed"): serial_writeln("DevAddr not in Tunnel configuration");
         return true;
       }
+    } else if (nsa_startsWith(tunnel_cmd, "CHANNEL ")){
+      nsa_substring(tunnel_cmd, 8);
+      tunnel_channel = strtol(nsa.result, NULL, BASE10);
+      return true;
     }
   }
   return false;
@@ -182,6 +256,19 @@ void plugin_incoming(uint8_t lora_payload_type)
   uint32_t dev_addr = read_uint32_le(&current_lora_message.payload[1]);
 
   snprintf(printbuf, sizeof(printbuf), "DevAddr: %02x", dev_addr);
+  serial_writeln(printbuf);
+
+  // Check if address is in our tunnel config
+  bool must_tunnel = tunnel_key_contains(dev_addr);
+
+  if (!must_tunnel) return;
+
+  // We need to tunnel the address
+
+  // Make sure that payload does not exceed tunnel length
+  lora_channel_config chnl = lora_channel[tunnel_channel];
+  uint8_t frm_size = frm_payload_for_config(chnl.spreading_factor, (int) chnl.bandwidth_in_khz);
+  snprintf(printbuf, sizeof(printbuf), "Allowable FRM Payload size: %d bytes", frm_size);
   serial_writeln(printbuf);
   return;
 }
