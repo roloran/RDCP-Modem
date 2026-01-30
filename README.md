@@ -61,7 +61,7 @@ The commands to control the firmware via Serial/UART are intended to be used by 
     - `e` is the remote radio id, i.e., the physical radio number on the AIR device.
     - `f` is the default channel to use for this AIR radio.
 
-- `SET RADIO SX1262 a b c d e f g h i j k l m n o` configures an SX1262 radio:
+- `SET RADIO SX1262 a b c d e f g h i j k l m` configures an SX1262 radio:
 
     - `a` is the local radio id.
     - `b` is the local radio id in the group of SX1262 radios, starting at `0`.
@@ -78,7 +78,7 @@ The commands to control the firmware via Serial/UART are intended to be used by 
     - `m` is the default channel for this radio.
     - `a`-`c` are single digits. `d`-`m` are two-digit numbers. Pins can be set to `-1` if not used. Note that pin numbers typically correspond to GPIO pins. When setting up a new type of LoRa development board, check the vendor-provided pinout diagrams, factory firmware, or other LoRa software implementations for the correct pinout.
 
-- `SET RADIO SX1268 a b c d e f g h i j k l m n o` configures an SX1268 radio. This command uses the same syntax as `SET RADIO SX1262`; note that `b` applies to the group of SX1268 radios, respectively.
+- `SET RADIO SX1268 a b c d e f g h i j k l m` configures an SX1268 radio. This command uses the same syntax as `SET RADIO SX1262`; note that `b` applies to the group of SX1268 radios, respectively.
 
 - `SET RADIO INTERFACE a b c d e f g h i` sets hardware parameters for SX1262/SX1268/AIR radios: 
 
