@@ -55,14 +55,15 @@ void radio_basic_setup(void)
 void radio_inject_modules(int spi_num)
 {
 #ifdef USE_ROLORAN_BOARD_V2025
+  extern SPIClass spi1, spi2;
   // Must set pinout adequately above!! The one provided by default is a for a single-SX1262 Heltec LoRa32 device!
   if (spi_num == SPI_ONE)
   {
-    sx1262_radios[0] = new SX1262(new Module(pinout[0].spi_cs, pinout[0].lora_dio, pinout[0].lora_reset, pinout[0].lora_busy, vspi, SPISettings(1000000, MSBFIRST, SPI_MODE0)));
+    sx1262_radios[0] = new SX1262(new Module(pinout[0].spi_cs, pinout[0].lora_dio1, pinout[0].lora_reset, pinout[0].lora_busy, spi1, SPISettings(1000000, MSBFIRST, SPI_MODE0)));
   }
   else if (spi_num == SPI_TWO)
   {
-    sx1268_radios[0] = new SX1268(new Module(pinout[1].spi_cs, pinout[1].lora_dio, pinout[1].lora_reset, pinout[1].lora_busy, vspi, SPISettings(1000000, MSBFIRST, SPI_MODE0)));
+    sx1268_radios[0] = new SX1268(new Module(pinout[1].spi_cs, pinout[1].lora_dio1, pinout[1].lora_reset, pinout[1].lora_busy, spi2, SPISettings(1000000, MSBFIRST, SPI_MODE0)));
   }
 #endif
 

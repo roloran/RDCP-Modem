@@ -46,12 +46,18 @@
 
 //< Defined if the used hardware supports Bluetooth (BT) (libraries must be available for platform)
 #ifdef ESP32
-// #define DEVICE_HAS_BLUETOOTH
+//#define DEVICE_HAS_BLUETOOTH
 #endif
 
 //< Defined if the used hardware supports Bluetooth Low Energy (BLE) (libraries must be available for platform)
 #ifdef ESP32
 #define DEVICE_HAS_BLUETOOTH_LE
+#endif
+
+#if defined(USE_ROLORAN_BOARD_V2025)
+#undef DEVICE_HAS_BLUETOOTH_LE
+#undef DEVICE_HAS_BLUETOOTH 
+#define DEVICE_HAS_BLUETOOTH
 #endif
 
 //< Data structure for defining a radio pinout

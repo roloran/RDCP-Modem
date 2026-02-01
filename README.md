@@ -340,5 +340,19 @@ SET RADIO INTERFACE 0 0 0 0 0 -1 -1 -1 -1
 RADIOINIT
 ```
 
+### ROLORAN Dual Channel Board (v2025)
+
+The dual-channel board developed in the ROLORAN project for the RDCP two-channel relay is ESP32-based and uses Ebyte LoRa two radios in the 433 MHz and 868 MHz domain connected to two different SPI interfaces. A proper PlatformIO environment is provided in `platformio.ini`. For stand-alone use, the following initscript can be applied:
+
+```
+SET RADIO NUM 2
+SET CHANNEL NUM 2
+SET CHANNEL LORA 00 869.525 125 07 5 12 00 15 1 2
+SET CHANNEL LORA 01 433.175 125 07 5 12 00 15 1 1
+SET RADIO SX1262 0 0 1 36 23 18 05 27 34 21 16 19 0
+SET RADIO SX1268 1 0 2 39 13 14 17 33 35 22 26 25 1
+SET RADIO INTERFACE 1 1 0 0 0 -1 -1 -1 -1
+RADIOINIT
+```
 
 <!-- EOF README.md -->

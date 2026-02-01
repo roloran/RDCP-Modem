@@ -368,9 +368,6 @@ int radio_start_send(uint8_t radio, uint8_t channel_to_use, const uint8_t* data,
   return RADIOLIB_ERR_NONE;
 }
 
-void lora_hardware_setup(void)
-{
-  char info_msg[INFOLEN];
 #if defined(ESP32)
 #ifdef VSPI
   SPIClass spi1 = SPIClass(VSPI);
@@ -381,6 +378,10 @@ void lora_hardware_setup(void)
 #endif
 #elif defined(USE_NRF52)
 #endif
+
+void lora_hardware_setup(void)
+{
+  char info_msg[INFOLEN];
 
   radio_basic_setup(); // sets the number of radios to initialize
 
