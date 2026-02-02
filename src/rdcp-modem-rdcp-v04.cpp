@@ -219,6 +219,18 @@ void rdcpv04_update_cfest_rx(uint8_t mode)
       int future_relays = cfg.scenario_num_relays - relay_currently_sending - THIS_ONE;
       future_timeslots = future_relays > ZERO_TIMESLOTS ? future_relays : ZERO_TIMESLOTS;
       
+      /* 
+        A magic value in the relay3 header field indicates that a message's Entry Point
+        echoes back a new message in its local area. In this case, a full 868.forward
+        cycle will still follow afterwards.
+      */    
+      if ((current_rdcpv04_message.header.relay1 == RDCPv04_HEADER_RELAY_MAGIC_NONE) &&
+          (current_rdcpv04_message.header.relay3 == RDCPv04_HEADER_RELAY_MAGIC_EP_ECHO))
+      {
+        future_timeslots = cfg.scenario_num_relays;
+        magic_delay = RDCPv04_EP_HEADSTART_DELAY;
+      }
+
       /* Selected message types stay local to DAs and must be ignored when sent by a DA origin */
       if ((current_rdcpv04_message.header.message_type == RDCPv04_MSGTYPE_ACK) || 
           (current_rdcpv04_message.header.message_type == RDCPv04_MSGTYPE_ROAMING_BEACON))
@@ -231,7 +243,7 @@ void rdcpv04_update_cfest_rx(uint8_t mode)
       }
     }
     else 
-    {
+    { // HQ or MG device sending
       if (current_rdcpv04_message.header.sequence_number > RDCPv04_SEQUENCENR_SPECIAL_ZERO)
       { // not an MG heartbeat
         if (current_rdcpv04_message.header.relay1 != RDCPv04_RELAY1_NO_EP)
