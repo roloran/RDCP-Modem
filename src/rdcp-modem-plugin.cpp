@@ -34,7 +34,7 @@ struct tunnel_dev {
  * An optional `tunnel_dev`. If `valid` is not true then `tunnel_dev` must not be read
  */
 struct maybe_tunnel_dev {
-  tunnel_dev tunnel_dev; // only access this if valid is true. No guaranteed content otherwise
+  tunnel_dev dev; // only access this if valid is true. No guaranteed content otherwise
   bool valid;            // indicates if `tunnel_dev` may be used
 };
 
@@ -140,11 +140,11 @@ maybe_tunnel_dev tunnel_dev_addr_get(uint32_t key){
   while (low < high){
     size_t mid = low + (high - low) / 2;
     uint32_t m = tunnel_list[mid].dev_addr;
-    if (m == key) return maybe_tunnel_dev{.tunnel_dev = tunnel_list[mid], .valid=true};
+    if (m == key) return maybe_tunnel_dev{.dev = tunnel_list[mid], .valid=true};
     if (m < key) low = mid + 1;
     else high = mid;
   }
-  return maybe_tunnel_dev{.tunnel_dev=tunnel_dev{}, .valid=false};
+  return maybe_tunnel_dev{.dev=tunnel_dev{}, .valid=false};
 }
 
 /*
@@ -329,7 +329,7 @@ void plugin_incoming(uint8_t lora_payload_type)
   if (!maybe_dev.valid){ return; }
 
   // dev is valid
-  tunnel_dev td = maybe_dev.tunnel_dev;
+  tunnel_dev td = maybe_dev.dev;
 
   // compare timestamps
   if (my_millis() - td.ts_last_rx < min_tunnel_period){ return; }
