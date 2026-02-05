@@ -19,9 +19,27 @@
 
 // could potentially be setable in platformio.ini
 #define MAX_TUNNEL_KEYS 256
-static uint32_t tunnel_keys[MAX_TUNNEL_KEYS];
+
+typedef struct {
+  uint32_t dev_addr;     // DevAddr of the LoRaWAN device
+  uint64_t ts_last_rx;   // timestamp in milli seconds when last message from this device was received
+} tunnel_dev;
+
+typedef struct {
+  tunnel_dev tunnel_dev; // only access this if valid is true. No guaranteed content otherwise
+  bool valid;
+} maybe_tunnel_dev;
+
+// tunnel_keys maps DevAddr to the last timestamp they a message from this address was received
+static tunnel_dev tunnel_keys[MAX_TUNNEL_KEYS];
 static size_t tunnel_keys_len = 0;
+
+// the channel on which to listen for packets
+static size_t listen_channel = 0;
+// the channel over which to tunnel packets
 static size_t tunnel_channel = 0;
+// minimum time between two packets to be considered for tunneling. Default 10 min
+static uint64_t min_tunnel_period = 10 * 60 * 1000;
 
 static char line_uppercase[SERIALINPUTLEN];
 static char tunnel_cmd[SERIALINPUTLEN];
@@ -78,6 +96,10 @@ static const uint8_t FRM_PAYLOAD_TABLE[DR_COUNT] = {
   222,  /* DR_6 */
 };
 
+extern lora_message    current_lora_message;
+extern rdcpv04_message current_rdcpv04_message;
+extern bool            current_rdcpv04_message_is_duplicate;
+
 /**
  * Return the FRM payload size given a known spreading factor and bandwidth.
  * 0 is returned in case there is not defined payload size for the argument combination.
@@ -96,16 +118,20 @@ uint8_t frm_payload_for_config(int sf, int bw){
   return FRM_PAYLOAD_TABLE[dr];
 }
 
-bool tunnel_key_contains(uint32_t key){
+maybe_tunnel_dev tunnel_key_get(uint32_t key){
   size_t low = 0, high = tunnel_keys_len;
   while (low < high){
     size_t mid = low + (high - low) / 2;
-    uint32_t m = tunnel_keys[mid];
-    if (m == key) return true;
+    uint32_t m = tunnel_keys[mid].dev_addr;
+    if (m == key) return maybe_tunnel_dev{.tunnel_dev = tunnel_keys[mid], .valid=true};
     if (m < key) low = mid + 1;
     else high = mid;
   }
-  return false;
+  return maybe_tunnel_dev{.tunnel_dev=tunnel_dev{}, .valid=false};
+}
+
+bool tunnel_key_contains(uint32_t key){
+  return tunnel_key_get(key).valid;
 }
 
 bool tunnel_key_insert(uint32_t key){
@@ -119,7 +145,7 @@ bool tunnel_key_insert(uint32_t key){
   size_t low = 0, high = tunnel_keys_len;
   while (low < high){
     size_t mid = low + (high - low) / 2;
-    uint32_t m = tunnel_keys[mid];
+    uint32_t m = tunnel_keys[mid].dev_addr;
     if (m == key) return true;
     if (m < key) low = mid + 1;
     else high = mid;
@@ -131,7 +157,8 @@ bool tunnel_key_insert(uint32_t key){
     tunnel_keys[i] = tunnel_keys[i - 1];
   }
 
-  tunnel_keys[low] = key;
+  tunnel_dev entry = {.dev_addr = key, .ts_last_rx = 0};
+  tunnel_keys[low] = entry;
   tunnel_keys_len++;
   return true;
 }
@@ -148,7 +175,7 @@ bool tunnel_key_remove(uint32_t key){
   size_t mid = 0;
   while (low < high){
     mid = low + (high - low) / 2;
-    uint32_t m = tunnel_keys[mid];
+    uint32_t m = tunnel_keys[mid].dev_addr;
     if (m == key) found = true;
     if (m < key) low = mid + 1;
     else high = mid;
@@ -208,17 +235,14 @@ bool plugin_serial(const char* line)
         return true;
       }
     } else if (nsa_startsWith(tunnel_cmd, "CHANNEL ")){
-      nsa_substring(tunnel_cmd, 8);
-      tunnel_channel = strtol(nsa.result, NULL, BASE10);
+      nsa_strsplice(tunnel_cmd);
+      listen_channel = strtol(nsa.part[1], NULL, BASE10);
+      tunnel_channel = strtol(nsa.part[2], NULL, BASE10);
       return true;
     }
   }
   return false;
 }
-
-extern lora_message    current_lora_message;
-extern rdcpv04_message current_rdcpv04_message;
-extern bool            current_rdcpv04_message_is_duplicate;
 
 uint32_t read_uint32_le(const uint8_t *buf){
   return ((uint32_t)buf[0])       |
@@ -259,11 +283,18 @@ void plugin_incoming(uint8_t lora_payload_type)
   serial_writeln(printbuf);
 
   // Check if address is in our tunnel config
-  bool must_tunnel = tunnel_key_contains(dev_addr);
+  maybe_tunnel_dev maybe_dev  = tunnel_key_get(dev_addr);
 
-  if (!must_tunnel) return;
+  if (!maybe_dev.valid){ return; }
+
+  // dev is valid
+  tunnel_dev td = maybe_dev.tunnel_dev;
+
+  // compare timestamps
+  if (my_millis() - td.ts_last_rx < min_tunnel_period){ return; }
 
   // We need to tunnel the address
+  td.ts_last_rx = my_millis();
 
   // Make sure that payload does not exceed tunnel length
   lora_channel_config chnl = lora_channel[tunnel_channel];
