@@ -200,7 +200,7 @@ The following additional commands are present:
 
 - `TUNNEL ADD a` adds the DevAddr `a` (8 digit hex) to the list of addresses to be tunneled. Example: `TUNNEL ADD 1A2B3C4D`
 - `TUNNEL DEL a` removes the DevAddr `a` (8 digit hex) from the list of addresses to be tunneled. Example: `TUNNEL DEL 1A2B3C4D`
-- `TUNNEL CHANNEL l t` sets the channel on which to listen for messages `l` (number) and the channel on which to tunnel `t` (number). Example: `TUNNEL CHANNEL 01 02`
+- `TUNNEL CHANNEL a b c d` sets the radio + channel on which to listen for messages `a`, `b` (number) and the radio + channel on which to tunnel `c`, `d` (number). Example: `TUNNEL CHANNEL 0 01 1 02`
 
 ## Hardware wiring and configuration for AIR radios
 
