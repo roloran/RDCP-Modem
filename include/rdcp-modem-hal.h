@@ -42,6 +42,31 @@ void hal_memory_check(void);
 uint32_t nrf52_getFreeHeap(void);
 #endif
 
+#if defined(ESP32)
+/**
+ * Enter light sleep mode.
+ */
+void sleep_light(void);
+
+/**
+ * Enter deep sleep mode.
+ */
+void sleep_deep(void);
+
+/**
+ * Check the device's wake-up reason; perform required actions after wake-up from deep sleep.
+ * @return true if woken from deep sleep, false otherwise.
+ */
+bool check_wakeup_reason(void);
+
+/**
+ * Restore pin configuration after wake-up.
+ * @param woken_from_lightsleep true if we were in light sleep, false if we were in deep sleep
+ */
+void sleep_restore_after_wakeup(bool woken_from_lightsleep=OPTION_DISABLED);
+
+#endif
+
 #endif
 
 /* EOF rdcp-modem-hal.h */

@@ -447,6 +447,8 @@ void serial_process_command(const char* s, const char* processing_mode)
       int pin_rxen              = strtol(nsa.part[12], NULL, BASE10); 
       uint8_t default_channel   = strtol(nsa.part[13], NULL, BASE10); 
 
+      if (cfg.woken_from_deep_sleep) pin_reset = RADIOLIB_NC; // disconnect RESET pin from RadioLib after deep sleep
+
       snprintf(serial_info, INFOLEN, "INFO: Setting up new SX1262 radio as radio %d, on SPI%d, id in group is %d, MISO %d, MOSI %d, CLK %d, CS %d, DIO1 %d, BUSY %d, RESET %d, TXEN %d, RXEN %d, default channel %d",
         (int) local_radio_id, (int) spi_interface, (int) radio_id_in_group, pin_miso, pin_mosi, pin_clk, pin_cs, 
         pin_dio1, pin_busy, pin_reset, pin_txen, pin_rxen, (int) default_channel);
@@ -496,6 +498,8 @@ void serial_process_command(const char* s, const char* processing_mode)
       int pin_txen              = strtol(nsa.part[11], NULL, BASE10); 
       int pin_rxen              = strtol(nsa.part[12], NULL, BASE10); 
       uint8_t default_channel   = strtol(nsa.part[13], NULL, BASE10); 
+
+      if (cfg.woken_from_deep_sleep) pin_reset = RADIOLIB_NC; // disconnect RESET pin from RadioLib after deep sleep
 
       snprintf(serial_info, INFOLEN, "INFO: Setting up new SX1268 radio as radio %d, on SPI%d, id in group is %d, MISO %d, MOSI %d, CLK %d, CS %d, DIO1 %d, BUSY %d, RESET %d, TXEN %d, RXEN %d, default channel %d",
         (int) local_radio_id, (int) spi_interface, (int) radio_id_in_group, pin_miso, pin_mosi, pin_clk, pin_cs, 
@@ -1050,6 +1054,37 @@ void serial_process_command(const char* s, const char* processing_mode)
     {
       rdcpv04_csvlogfile_delete();
     }
+  }
+#if defined(ESP32)
+  else if (nsa_startsWith(line_uppercase, "SLEEP DEEP"))
+  {
+    sleep_deep();
+  }
+  else if (nsa_startsWith(line_uppercase, "SLEEP LIGHT"))
+  {
+    sleep_light();
+  }
+  else if (nsa_startsWith(line_uppercase, "SLEEP TIMER "))
+  {
+    nsa_strsplice(line);
+    cfg.auto_wake = strtol(nsa.part[2], NULL, BASE10);
+    snprintf(serial_info, INFOLEN, "INFO: Auto wake from sleep set to %d milliseconds", (int) cfg.auto_wake);
+    serial_writeln(serial_info);
+  }
+  else if (nsa_startsWith(line_uppercase, "SLEEP WAKEUPPIN "))
+  {
+    nsa_strsplice(line);
+    cfg.additional_wakeup_pin = strtol(nsa.part[2], NULL, BASE10);
+    snprintf(serial_info, INFOLEN, "INFO: Additional wake-up pin was set to %d", (int) cfg.additional_wakeup_pin);
+    serial_writeln(serial_info);
+  }
+#endif
+  else if (nsa_startsWith(line_uppercase, "SWITCH "))
+  {
+    nsa_strsplice(line);
+    uint8_t radio_id   = strtol(nsa.part[1], NULL, BASE10);
+    uint8_t channel_id = strtol(nsa.part[2], NULL, BASE10);
+    radio_switch_to_channel(radio_id, channel_id, FORCED_CHANNEL_SWITCH);
   }
   else if (nsa_startsWith(line_uppercase, "RESTART") || nsa_startsWith(line_uppercase, "REBOOT"))
   {

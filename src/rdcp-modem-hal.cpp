@@ -179,4 +179,119 @@ int64_t my_random_in_range(uint32_t r_min, uint32_t r_max)
   return result;
 }
 
+#if defined(ESP32)
+#include <rom/rtc.h>
+#include <driver/rtc_io.h>
+extern radio_pinout pinout[];
+
+void sleep_prepare(void)
+{
+  uint64_t wakeup_bitmask = 0;
+
+  for (int i=0; i<cfg.number_of_radios; i++)
+  {
+    if (pinout[i].radio_type == RADIO_TYPE_SX1262 || pinout[i].radio_type == RADIO_TYPE_SX1268)
+    {
+      wakeup_bitmask += pow(2, pinout[i].lora_dio1);
+    	rtc_gpio_pulldown_en((gpio_num_t) pinout[i].lora_dio1);
+	    rtc_gpio_pullup_en((gpio_num_t)   pinout[i].lora_reset);
+	    rtc_gpio_pullup_en((gpio_num_t)   pinout[i].spi_cs);
+    }
+  }
+
+  if (cfg.auto_wake > 0)
+  {
+    esp_sleep_enable_timer_wakeup(cfg.auto_wake * (uint64_t)1000); // needs microseconds
+  }
+
+  if (cfg.additional_wakeup_pin != PIN_NOT_USED)
+  {
+    wakeup_bitmask += pow(2, cfg.additional_wakeup_pin);
+  }
+
+	esp_sleep_enable_ext1_wakeup(wakeup_bitmask, ESP_EXT1_WAKEUP_ANY_HIGH);
+
+  return;
+}
+
+int sleep_restore_once_only = COUNT_ZERO;
+
+void sleep_restore_after_wakeup(bool woken_from_lightsleep)
+{ 
+  if (sleep_restore_once_only > 0) return; // only run this function once after wake-up, even if called multiple times
+  sleep_restore_once_only++;
+
+  uint64_t bitmask = esp_sleep_get_ext1_wakeup_status();
+
+  snprintf(hal_info, INFOLEN, "INFO: Wake-up procedure, number of radios: %d, wake-up bitmask %" PRIu64, cfg.number_of_radios, bitmask);
+  serial_writeln(hal_info);
+
+  for (int i=0; i<cfg.number_of_radios; i++)
+  {
+    if (pinout[i].radio_type == RADIO_TYPE_SX1262 || pinout[i].radio_type == RADIO_TYPE_SX1268)
+    {
+      snprintf(hal_info, INFOLEN, "INFO: Performing wake-up pin configuration for radio %d", i);
+      serial_writeln(hal_info);
+    	rtc_gpio_pulldown_dis((gpio_num_t) pinout[i].lora_dio1);
+	    rtc_gpio_pullup_dis((gpio_num_t) pinout[i].spi_cs);
+      if (cfg.disengage_reset_pin) rtc_gpio_pullup_dis((gpio_num_t) pinout[i].lora_reset);
+      if (bitmask & (1ULL << pinout[i].lora_dio1)) 
+      { 
+        cfg.waking_radio = i;
+        pinout[i].lora_reset = RADIOLIB_NC; // apparently too late, better in radio module injection
+      }
+    }
+  }
+
+  if (woken_from_lightsleep)
+  {
+    serial_writeln("INFO: Woke up from light sleep");
+  }
+  else
+  {
+    serial_writeln("INFO: Wake-up from deep sleep complete");
+  }
+ 
+  return;
+}
+
+bool check_wakeup_reason(void)
+{ 
+	RESET_REASON cpu0WakeupReason = rtc_get_reset_reason(0);
+	RESET_REASON cpu1WakeupReason = rtc_get_reset_reason(1);
+
+  if ((cpu0WakeupReason == DEEPSLEEP_RESET) || (cpu1WakeupReason == DEEPSLEEP_RESET))
+	{ /* We woke from deep sleep. Don't fully initialize. */
+    cfg.woken_from_deep_sleep = OPTION_ENABLED;
+    if (cfg.toggle_spi_on_sleep) SPI.begin();
+    return true;
+  }
+
+  return false;
+}
+
+void sleep_light(void)
+{
+  serial_writeln("INFO: Entering ESP32 light sleep mode");
+  sleep_restore_once_only = COUNT_ZERO;
+  sleep_prepare();
+  esp_light_sleep_start(); // returns on wake-up
+  sleep_restore_after_wakeup(OPTION_ENABLED);
+  return;
+}
+
+/**
+ * Enter deep sleep mode.
+ */
+void sleep_deep(void)
+{
+  serial_writeln("INFO: Entering ESP32 deep sleep mode");
+  sleep_restore_once_only = COUNT_ZERO;
+  sleep_prepare();
+  if (cfg.toggle_spi_on_sleep) SPI.end();
+	esp_deep_sleep_start(); // never returns; system restarts on wake-up
+  return;
+}
+#endif
+
 /* EOF rdcp-modem-hal.cpp */

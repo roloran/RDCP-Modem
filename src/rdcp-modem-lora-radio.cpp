@@ -450,6 +450,11 @@ void lora_hardware_setup(void)
     int state;
     int radio_id_in_group = pinout[i].radio_id_in_group;
 
+#if defined(ESP32)
+    // With radios injected, perform wake-up pin configuration if necessary
+    if (cfg.woken_from_deep_sleep) sleep_restore_after_wakeup(OPTION_DISABLED);
+#endif
+
     if (pinout[i].radio_type == RADIO_TYPE_SX1262)
     {
 #if defined(ESP32)
@@ -496,6 +501,14 @@ void lora_hardware_setup(void)
     channel_used_by_radio[i] = pinout[i].default_channel;
     enable_interrupt[i]      = true;
     transmission_flag[i]     = false;
+    // if waking from deep sleep, the waking radio's DIO1 ISR will not have been triggered, 
+    // so we set the flag manually to allow it to proceed with reception handling
+    if (i == cfg.waking_radio) 
+    { 
+      transmission_flag[i] = true; 
+      snprintf(info_msg, INFOLEN, "INFO: Flagging radio %d for LoRa reception handling during deep sleep", i);
+      serial_writeln(info_msg);
+    }
     cad_mode[i]              = false;
   }
 

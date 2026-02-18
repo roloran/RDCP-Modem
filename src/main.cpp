@@ -27,11 +27,19 @@ char serial_input_line[SERIALINPUTLEN];
 void setup() 
 {
   serial_setup();                   // Set up the primary Serial/UART connection
-  for (int i=COUNT_ZERO; i <= PRE_START_DELAY_NUM; i++)
+
+#if defined(ESP32)
+  check_wakeup_reason();            // Check wake-up from deep sleep on ESP32
+#endif
+
+  if (!cfg.woken_from_deep_sleep)   // Skip delay when woken from sleep
   {
-    snprintf(main_info, INFOLEN, "INIT: Pre-start delay %d/%d", i, PRE_START_DELAY_NUM);
-    serial_writeln(main_info);
-    delay(PRE_START_DELAY_TIME);
+    for (int i=COUNT_ZERO; i <= PRE_START_DELAY_NUM; i++)
+    {
+      snprintf(main_info, INFOLEN, "INIT: Pre-start delay %d/%d", i, PRE_START_DELAY_NUM);
+      serial_writeln(main_info);
+      delay(PRE_START_DELAY_TIME);
+    }
   }
 
   persistence_setup();              // Set up persistence

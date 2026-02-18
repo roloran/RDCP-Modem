@@ -14,7 +14,7 @@
 */
 
 // Hardware shortcuts... pick 0..1
-//#define USE_HELTEC_V3
+// #define USE_HELTEC_V3
 //#define USE_ROLORAN_BOARD_V2025
 
 // Configuration shortcuts... pick any

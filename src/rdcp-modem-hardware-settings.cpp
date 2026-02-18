@@ -18,7 +18,7 @@ extern device_config cfg;
 radio_pinout pinout[] =
 { 
 #if defined(ESP32)
-  {RADIO_TYPE_SX1262, FIRST_IN_GROUP,  SPI_ONE,     GPIO_NUM_11, GPIO_NUM_10, GPIO_NUM_9, GPIO_NUM_8, GPIO_NUM_14, GPIO_NUM_13, GPIO_NUM_12, PIN_NOT_USED, PIN_NOT_USED, CHANNEL0 },
+  {RADIO_TYPE_SX1262, FIRST_IN_GROUP,  SPI_ONE,     GPIO_NUM_11, GPIO_NUM_10, GPIO_NUM_9, GPIO_NUM_8, GPIO_NUM_14, GPIO_NUM_13, GPIO_NUM_12, PIN_NOT_USED, PIN_NOT_USED, CHANNEL1 },
 #else
   {RADIO_TYPE_SX1262, FIRST_IN_GROUP,  SPI_ONE,     PIN_NOT_USED, PIN_NOT_USED, PIN_NOT_USED, PIN_NOT_USED, PIN_NOT_USED, PIN_NOT_USED, PIN_NOT_USED, PIN_NOT_USED, PIN_NOT_USED, CHANNEL0 },
 #endif
@@ -79,6 +79,8 @@ void radio_inject_modules(int spi_num)
 #endif
   if (spi_num == SPI_ONE)
   {
+    // For deep-sleep devices, make sure that RadioLib does not touch the RESET pin on its begin()
+    if (cfg.woken_from_deep_sleep) pinout[0].lora_reset = RADIOLIB_NC; // avoid resetting radio on wake-up  
     sx1262_radios[0] = new SX1262(new Module(pinout[0].spi_cs, pinout[0].lora_dio1, pinout[0].lora_reset, pinout[0].lora_busy));
   }
 #endif

@@ -191,6 +191,16 @@ The commands to control the firmware via Serial/UART are intended to be used by 
 
 - `SPI JUSTBEGIN` is the same as `SPI BEGIN`, but uses the MISO, MOSI, and CLK pins pre-configured in the source code without creating a new SPIClass.
 
+- `SWITCH a b` forces radio `a` to switch to channel `b`.
+
+- `SLEEP LIGHT` will put an ESP32 device into light sleep to be woken up by LoRa packet reception on a physical LoRa radio or after a timer fires. Note that AIR radios cannot be used as wake-up triggers.
+
+- `SLEEP DEEP` is similar to `SLEEP LIGHT`, but uses deep sleep on ESP32 devices. Note that ESP32 devices restart on waking from deep sleep, so any run-time states (such as messages queued for TX but not sent yet) are lost. To avoid longer wake-up times, it is recommended to hard-code any radio and channel settings in the firmware instead of using initscripts.
+
+- `SLEEP TIMER a` sets the wake-up timer to `a` milliseconds on ESP32 devices for both light and deep sleep (set `a` to `0` to disable timer-based wake-up). (ESP32 only)
+
+- `SLEEP WAKEUPPIN a` sets an additional GPIO pin `a` that can be used to wake up from (light or deep) sleep (`-1` to disable). Physical radio DIO1 pins are always used. Note that this additional GPIO pin usually has to be prepared by own code added to the firmware; otherwise it might be in a (default) state that always wakes the device immediately. (ESP32 only)
+
 - Sending an empty line or one containing only a single space will print some status information.
 
 ## Hardware wiring and configuration for AIR radios

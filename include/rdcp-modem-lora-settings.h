@@ -73,7 +73,13 @@ struct device_config
     uint8_t  default_channel       = CHANNEL0;                 /// Default channel to use
     bool     serial0_legacy        = OPTION_ENABLED;           /// Use ROLODECK-like Serial0 input handling
     bool     hq_mode               = OPTION_DISABLED;          /// Use ROLODECK-like HQ mode
-    uint16_t rdcp_address          = RDCP_ADDRESS_ZERO;        /// -> This device's RDCP unicast address
+    uint16_t rdcp_address          = RDCP_ADDRESS_ZERO;        /// This device's RDCP unicast address
+    uint64_t auto_wake             = 0 * SECONDS_TO_MILLISECONDS;  /// Automatically wake up from sleep after this many milliseconds (0 to disable)
+    int      additional_wakeup_pin = PIN_NOT_USED;             /// Additional pin to wake up from light or deep sleep, on top of DIO1 pins of physical radios
+    bool     woken_from_deep_sleep = OPTION_DISABLED;          /// Has the device been woken from deep sleep? 
+    uint8_t  waking_radio          = NO_REAL_RADIO;            /// Which radio has woken us from sleep?
+    bool     disengage_reset_pin   = OPTION_DISABLED;          /// Disable / disengage the pull-up for SX126x RESET GPIO pins after wake-up
+    bool     toggle_spi_on_sleep   = OPTION_DISABLED;          /// end() SPI before deep sleep and begin() after wake-up
 };
 
 #endif 

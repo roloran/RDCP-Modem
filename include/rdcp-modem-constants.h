@@ -176,6 +176,7 @@
 #define CR7 7
 #define CR8 8
 
+#define PL08 8
 #define PL15 15
 #define NO_FREQ 0.0
 
