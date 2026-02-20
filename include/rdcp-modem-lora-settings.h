@@ -74,6 +74,10 @@ struct device_config
     bool     serial0_legacy        = OPTION_ENABLED;           /// Use ROLODECK-like Serial0 input handling
     bool     hq_mode               = OPTION_DISABLED;          /// Use ROLODECK-like HQ mode
     uint16_t rdcp_address          = RDCP_ADDRESS_ZERO;        /// This device's RDCP unicast address
+    uint8_t  rdcp_myprivkey[KEYLENTEXT];                       /// This device's Schnorr private key
+    uint8_t  rdcp_mypubkey[KEYLENTEXT];                        /// This devices's Schnorr public key 
+    uint8_t  rdcp_hqpubkey[KEYLENTEXT];                        /// HQ's public Schnorr key 
+    uint8_t  rdcp_hqaeskey[KEYLENAES];                         /// Shared secret with HQ
     uint64_t auto_wake             = 0 * SECONDS_TO_MILLISECONDS;  /// Automatically wake up from sleep after this many milliseconds (0 to disable)
     int      additional_wakeup_pin = PIN_NOT_USED;             /// Additional pin to wake up from light or deep sleep, on top of DIO1 pins of physical radios
     bool     woken_from_deep_sleep = OPTION_DISABLED;          /// Has the device been woken from deep sleep? 

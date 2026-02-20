@@ -800,6 +800,40 @@ void serial_process_command(const char* s, const char* processing_mode)
       snprintf(serial_info, INFOLEN, "INFO: Changed this device's RDCP address to %04X", (unsigned int) cfg.rdcp_address);
       serial_writeln(serial_info);
     }
+    else if (nsa_startsWith(p1, "HQPUBKEY "))
+    {
+      nsa_substring(p1, 9);
+      snprintf((char*) cfg.rdcp_hqpubkey, KEYLENTEXT, "%s", nsa.result);
+      serial_writeln("INFO: HQ Public Key set");
+    }
+    else if (nsa_startsWith(p1, "MYPUBKEY "))
+    {
+      nsa_substring(p1, 9);
+      snprintf((char*) cfg.rdcp_mypubkey, KEYLENTEXT, "%s", nsa.result);
+      serial_writeln("INFO: My Public Key set");
+    }
+    else if (nsa_startsWith(p1, "MYPRIVKEY "))
+    {
+      nsa_substring(p1, 10);
+      snprintf((char*) cfg.rdcp_myprivkey, KEYLENTEXT, "%s", nsa.result);
+      serial_writeln("INFO: My Private Key set");
+    }
+    else if (nsa_startsWith(p1, "HQAESKEY "))
+    { 
+      nsa_substring(p1, 9);
+      uint8_t secret[KEYLENAES];
+      for (int i=COUNT_ZERO; i<KEYLENAES; i++) secret[i] = ZEROBYTE;
+      char hexbyte[3];
+      hexbyte[2] = ZEROBYTE;
+      for (int i=COUNT_ZERO; i<KEYLENAES; i++)
+      {
+        hexbyte[0] = toupper(nsa.result[2*i]);
+        hexbyte[1] = toupper(nsa.result[2*i+1]);
+        secret[i] = (uint8_t) strtol(hexbyte, NULL, BASE16);
+      }
+      for (int i=COUNT_ZERO; i<KEYLENAES; i++) cfg.rdcp_hqaeskey[i] = secret[i];
+      serial_writeln("INFO: Shared secret with HQ established");
+    }
   }
   else if (nsa_startsWith(line_uppercase, "SERIAL "))
   {

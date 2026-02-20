@@ -136,6 +136,14 @@ The commands to control the firmware via Serial/UART are intended to be used by 
 
 - `SET RDCP ADDR n` sets the device's RDCP address to `n` (must be up to 4 hex digits).
 
+- `SET RDCP HQPUBKEY aaa` sets the HQ's public Schnorr key
+
+- `SET RDCP HQAESKEY aaa` sets the shared secret (AES key) when communicating with the HQ
+
+- `SET RDCP MYPUBKEY aaa` sets this device's public Schnorr key
+
+- `SET RDCP MYPRIVKEY aaa` sets this device's private Schnorr key
+
 - `SERIAL text` sends `text` to the Serial interface without the Serial prefix. Can be useful if a device, such as an RDCP v0.4 DA, is connected to Serial.
 
 - `SERIALP text` is the same as `SERIAL`, but includes the Serial prefix.

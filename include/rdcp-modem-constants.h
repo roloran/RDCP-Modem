@@ -44,6 +44,8 @@
 #define SERIALINPUTLEN 512
 #define DATALEN        256
 #define LEN32           32
+#define KEYLENTEXT     256
+#define KEYLENAES       32
 
 // Maximum payload size in bytes of a LoRa packet
 #define MAX_LORA_PAYLOAD_SIZE 250
