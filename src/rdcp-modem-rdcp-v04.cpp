@@ -17,8 +17,12 @@
 using namespace Adafruit_LittleFS_Namespace;
 extern File f;
 #endif
+#include "rdcp-modem-persistence.h"
+#include "rdcp-modem-crypto.h"
 
 extern rdcpv04_message current_rdcpv04_message;
+rdcpv04_message prepared_rdcpv04_message;
+extern lora_channel_config lora_channel[];
 
 int64_t last_csv_timestamp[MAX_NUMBER_OF_CHANNELS] = { RDCPv04_TIMESTAMP_ZERO };
 
@@ -31,11 +35,17 @@ extern lora_channel_config lora_channel[];
 extern txqueue txq;
 extern int tx_ongoing[MAX_NUMBER_OF_CHANNELS];
 extern String line_from_file;
+extern int64_t reboot_requested;
+extern bool seqnr_reset_requested;
 
 bool     rdcpv04_csvlogfile_enabled = OPTION_DISABLED;
 uint16_t rdcpv04_csvlogfile_count   = COUNT_ZERO;
 
 rdcpv04_dtable rdcpv04_dupe_table;
+
+int64_t last_heartbeat_sent = ZERO_TIMESTAMP;
+bool rtc_active = OPTION_DISABLED;
+rtc_entry RTC[MAX_RTC];
 
 bool rdcpv04_check_duplicate_message(uint16_t origin, uint16_t sequence_number)
 {
@@ -508,6 +518,547 @@ uint16_t crc16_rdcpv04(uint8_t *data, uint16_t len)
         crc &= 0xFFFF;
     }
     return crc;
+}
+
+/**
+ * Return the default number of retransmissions for a given message type. 
+ * @param mt RDCP v0.4 Message Type 
+ * @return Default initial number of retransmission for the queried message type
+ */
+uint8_t rdcpv04_get_default_retransmission_counter_for_messagetype(uint8_t mt)
+{
+  uint8_t nrt = RDCPv04_NRT_LEVEL_LOW;
+
+  if ( (mt == RDCPv04_MSGTYPE_INFRASTRUCTURE_RESET) || (mt == RDCPv04_MSGTYPE_ACK) ||
+       (mt == RDCPv04_MSGTYPE_RESET_ALL_ANNOUNCEMENTS) ) nrt = RDCPv04_NRT_LEVEL_MIDDLE;
+
+  if ( (mt == RDCPv04_MSGTYPE_OFFICIAL_ANNOUNCEMENT) || (mt == RDCPv04_MSGTYPE_CITIZEN_REPORT) ||
+       (mt == RDCPv04_MSGTYPE_SIGNATURE) ) nrt = RDCPv04_NRT_LEVEL_HIGH;
+
+  return nrt;
+}
+
+/**
+ * Fill the RDCP Header fields for outgoing responses as they are
+ * the same for any outgoing response.
+ * 
+ * Important:
+ * Destination, Message Type, Payload Length, Relay123 and the whole Payload
+ * must be set before calling this function.
+ * 
+ * @param reuse_seqnr true if existing SeqNr should be kept, false to set a new one
+ */
+void rdcpv04_prepare_response_header(bool reuse_seqnr)
+{
+    prepared_rdcpv04_message.header.sender = cfg.rdcp_address;
+    prepared_rdcpv04_message.header.origin = cfg.rdcp_address;
+
+    if (!reuse_seqnr) prepared_rdcpv04_message.header.sequence_number = persistence_get_next_rdcp_sequence_number(cfg.rdcp_address);
+    prepared_rdcpv04_message.header.counter = rdcpv04_get_default_retransmission_counter_for_messagetype(prepared_rdcpv04_message.header.message_type);
+
+    /* Update CRC header field */
+    uint8_t data_for_crc[INFOLEN];
+    memcpy(&data_for_crc, &prepared_rdcpv04_message.header, RDCPv04_HEADER_SIZE - RDCPv04_CRC_SIZE);
+    for (int i=COUNT_ZERO; i < prepared_rdcpv04_message.header.rdcp_payload_length; i++)
+        data_for_crc[i + RDCPv04_HEADER_SIZE - RDCPv04_CRC_SIZE] = prepared_rdcpv04_message.payload.data[i];
+    uint16_t actual_crc = crc16_rdcpv04(data_for_crc, RDCPv04_HEADER_SIZE - RDCPv04_CRC_SIZE + prepared_rdcpv04_message.header.rdcp_payload_length);
+    prepared_rdcpv04_message.header.checksum = actual_crc;
+
+    return;
+}
+
+/**
+ * Schedule the prepared response for transmission on the given channel.
+ * @param channel Channel to use
+ * @param no_delay Send ASAP if true, add a delay if false
+ */
+void rdcpv04_pass_response_to_scheduler(uint8_t channel, bool no_delay=false)
+{
+    uint8_t data_for_scheduler[INFOLEN];
+    memcpy(&data_for_scheduler, &prepared_rdcpv04_message.header, RDCPv04_HEADER_SIZE);
+    for (int i=COUNT_ZERO; i < prepared_rdcpv04_message.header.rdcp_payload_length; i++)
+        data_for_scheduler[i + RDCPv04_HEADER_SIZE] = prepared_rdcpv04_message.payload.data[i];
+
+    int64_t forced_time = TIMESTAMP_ZERO; 
+
+    if (!no_delay)
+    {
+      forced_time -= cfg.default_response_delay * rdcpv04_get_sf_multiplier(channel);
+    }
+
+    /* Relay-specific handling (4 second 433 MHz headstart handling, see RDCP-Relay) */
+    if (cfg.device_is_relay)
+    {
+      int factor = no_delay ? 0 : 20;
+      forced_time = -1 * factor * SECONDS_TO_MILLISECONDS * rdcpv04_get_sf_multiplier(channel);
+      forced_time = -100 * (1 + cfg.relay_identifier);
+      if (lora_channel[channel].cfest_mode == CFEST_MODE_RDCP_V04_868) forced_time -= 4 * SECONDS_TO_MILLISECONDS;
+    }
+
+    scheduler_enqueue(channel, PAYLOAD_TYPE_RDCP_V04, data_for_scheduler, 
+                      RDCPv04_HEADER_SIZE + prepared_rdcpv04_message.header.rdcp_payload_length,
+                      forced_time == TIMESTAMP_ZERO ? SCHEDULING_MODE_CHANNEL_FREE : SCHEDULING_MODE_FIXED_TIME,
+                      TX_CALLBACK_NONE, forced_time);
+
+    return;
+}
+
+/**
+ * In order to verify the Schnorr signature of an incoming RDCP Message, calculate the
+ * hash value for the relevant RDCP Header and RDCP Payload elements.
+ * @param m Pointer to an rdcp_message data structure
+ * @param payloadprefixlength Number of bytes at the beginning of the RDCP Payload to consider
+ * @param hashtarget Pointer where to store the 32-byte hash result
+ */
+void get_inline_hash(struct rdcpv04_message *m, uint8_t payloadprefixlength, uint8_t *hashtarget)
+{
+  /* Prepare the signed data */
+  uint8_t data_to_sign[INFOLEN];
+  data_to_sign[0] = m->header.origin % 256;
+  data_to_sign[1] = m->header.origin / 256;
+  data_to_sign[2] = m->header.sequence_number % 256;
+  data_to_sign[3] = m->header.sequence_number / 256;
+  data_to_sign[4] = m->header.destination % 256;
+  data_to_sign[5] = m->header.destination / 256;
+  data_to_sign[6] = m->header.message_type;
+  data_to_sign[7] = m->header.rdcp_payload_length;
+  for (int i=COUNT_ZERO; i<payloadprefixlength; i++) data_to_sign[8+i] = m->payload.data[i];
+  uint8_t data_to_sign_length = 8 + payloadprefixlength;
+
+  /* Get the SHA-256 hash for the data */
+  SHA256 h = SHA256();
+  h.reset();
+  h.update(data_to_sign, data_to_sign_length);
+  uint8_t sha[SHABUFSIZE];
+  h.finalize(sha, SHABUFSIZE);
+
+  /* Copy result to target buffer */
+  for (int i=COUNT_ZERO; i<SHABUFSIZE; i++) hashtarget[i] = sha[i];
+
+  return;
+}
+
+uint8_t rdcpv04_get_channel_for_mode(uint8_t mode)
+{
+  for (uint8_t c=COUNT_ZERO; c < cfg.number_of_channels; c++)
+  {
+    if (lora_channel[c].cfest_mode == mode) return c;
+  }
+  serial_writeln("WARNING: No suitable channel for response identified");
+  return 0;
+}
+
+uint16_t rdcpv04_getSuggestedRelay(int num_try)
+{
+  /* Roaming not implemented yet */
+  if (num_try == 0) return cfg.default_entry_point;
+  return cfg.default_entry_point;
+}
+
+void rdcpv04_cmd_send_echo_response(void)
+{
+  if (current_rdcpv04_message.header.destination != cfg.rdcp_address) return; // respond to personal pings only
+  prepared_rdcpv04_message.header.destination = current_rdcpv04_message.header.origin;
+  prepared_rdcpv04_message.header.message_type = RDCPv04_MSGTYPE_ECHO_RESPONSE;
+  prepared_rdcpv04_message.header.rdcp_payload_length = RDCPv04_PAYLOAD_SIZE_ECHO_RESPONSE;
+
+  uint8_t channel = current_lora_message.channel;
+
+  if (cfg.device_is_relay)
+  {
+    /* Respond on the same channel we got the request from unless it was forwarded, set Relays accordingly. */
+    if (lora_channel[current_lora_message.channel].cfest_mode == CFEST_MODE_RDCP_V04_433 ||
+        (current_rdcpv04_message.header.origin != current_rdcpv04_message.header.sender))
+    {
+      prepared_rdcpv04_message.header.relay1 = (cfg.cirerelays[0] << 4) + 0;
+      prepared_rdcpv04_message.header.relay2 = (cfg.cirerelays[1] << 4) + 1;
+      prepared_rdcpv04_message.header.relay3 = (cfg.cirerelays[2] << 4) + 2;
+      channel = rdcpv04_get_channel_for_mode(CFEST_MODE_RDCP_V04_433);
+    }
+    else
+    {
+      prepared_rdcpv04_message.header.relay1 = RDCPv04_HEADER_RELAY_MAGIC_NONE;
+      prepared_rdcpv04_message.header.relay2 = RDCPv04_HEADER_RELAY_MAGIC_NONE;
+      prepared_rdcpv04_message.header.relay3 = RDCPv04_HEADER_RELAY_MAGIC_NONE;
+      channel = rdcpv04_get_channel_for_mode(CFEST_MODE_RDCP_V04_868);
+    }
+  }
+  else 
+  { // Not a relay, send via Entry Point on same channel as received
+    prepared_rdcpv04_message.header.relay1 = (uint8_t) ((rdcpv04_getSuggestedRelay(0) & 0x000F) * 16) + (uint8_t) 0x0;
+    prepared_rdcpv04_message.header.relay2 = RDCPv04_HEADER_RELAY_MAGIC_NONE;
+    prepared_rdcpv04_message.header.relay3 = RDCPv04_HEADER_RELAY_MAGIC_NONE;
+  }
+  rdcpv04_prepare_response_header(false);
+  rdcpv04_pass_response_to_scheduler(channel);
+
+  return;
+}
+
+void rdcpv04_cmd_timestamp(void)
+{
+  if (current_rdcpv04_message.header.rdcp_payload_length != RDCPv04_SIGNATURE_LENGTH + RDCPv04_PAYLOAD_SIZE_INLINE_TIMESTAMP)
+  {
+    serial_writeln("WARNING: Payload size of received RDCP Timestamp is invalid - ignoring");
+    return;
+  }
+
+  uint8_t sha[SHABUFSIZE];
+  get_inline_hash(&current_rdcpv04_message, RDCPv04_PAYLOAD_SIZE_INLINE_TIMESTAMP, sha);
+  uint8_t sig[SIGBUFSIZE];
+  for (int i=COUNT_ZERO; i<RDCPv04_SIGNATURE_LENGTH; i++) sig[i] = current_rdcpv04_message.payload.data[RDCPv04_PAYLOAD_SIZE_INLINE_TIMESTAMP+i];
+  bool valid_signature = schnorr_verify_signature(sha, SHABUFSIZE, sig);
+  if (!valid_signature)
+  {
+    serial_writeln("WARNING: Invalid HQ Schnorr signature for RDCP Timestamp - ignoring");
+    return;
+  }
+
+  uint8_t year   = current_rdcpv04_message.payload.data[0];
+  uint8_t month  = current_rdcpv04_message.payload.data[1];
+  uint8_t day    = current_rdcpv04_message.payload.data[2];
+  uint8_t hour   = current_rdcpv04_message.payload.data[3];
+  uint8_t minute = current_rdcpv04_message.payload.data[4];
+  uint8_t status = current_rdcpv04_message.payload.data[5];
+
+  char msg[INFOLEN];
+  snprintf(msg, INFOLEN, "INFO: Received valid RDCP Timestamp: %02d.%02d.%04d %02d:%02d (Status %d)", 
+           day, month, 2025 + year, hour, minute, status);
+  serial_writeln(msg);
+
+  /* With attached DA only 
+  snprintf(msg, INFOLEN, "DA_TIME %02d.%02d.%04d %02d:%02d (%d)", day, month, 2025 + year, hour, minute, status);
+  serial_writeln(msg);
+  */
+
+  /*
+      We don't need the timestamp ourselves, only the overall RDCP Infrastructure status for now.
+  */
+  cfg.infrastructure_status = status;
+
+  return;
+}
+
+void rdcpv04_cmd_device_reset(void)
+{
+  if (current_rdcpv04_message.header.destination != cfg.rdcp_address) return; // respond to personal device resets only
+
+  uint8_t cmd_payload_len = RDCPv04_PAYLOAD_SIZE_INLINE_DEVICERESET;
+  if (current_rdcpv04_message.header.rdcp_payload_length != RDCPv04_SIGNATURE_LENGTH + cmd_payload_len)
+  {
+    serial_writeln("WARNING: Payload size of received RDCP Device Reset is invalid - ignoring");
+    return;
+  }
+
+  uint8_t sha[SHABUFSIZE];
+  get_inline_hash(&current_rdcpv04_message, cmd_payload_len, sha);
+  uint8_t sig[SIGBUFSIZE];
+  for (int i=COUNT_ZERO; i<RDCPv04_SIGNATURE_LENGTH; i++) sig[i] = current_rdcpv04_message.payload.data[cmd_payload_len+i];
+  bool valid_signature = schnorr_verify_signature(sha, SHABUFSIZE, sig);
+  if (!valid_signature)
+  {
+    serial_writeln("WARNING: Invalid HQ Schnorr signature for RDCP Device Reset - ignoring");
+    return;
+  }
+
+  uint16_t nonce = current_rdcpv04_message.payload.data[0] + 256 * current_rdcpv04_message.payload.data[1];
+
+  char noncename[NONCENAMESIZE]; snprintf(noncename, NONCENAMESIZE, "rstdev");
+  if (!persistence_checkset_nonce(noncename, nonce))
+  {
+    serial_writeln("WARNING: Invalid nonce received for signed RDCP RESET of DEVICE");
+    return;
+  }
+  else
+  {
+    serial_writeln("INFO: Performing RESET OF DEVICE");
+    /* serial_writeln("DA_RESETDEVICE"); */ // Relay with attached DA only
+  }
+
+  /* We can reset all volatile data by simply restarting. Needs to be extended if more data is persisted. */
+  hal_device_restart();
+
+  return;
+}
+
+void rdcpv04_cmd_device_reboot(void)
+{
+  if (current_rdcpv04_message.header.destination != cfg.rdcp_address) return; // respond to personal device reboots only
+
+  uint8_t cmd_payload_len = RDCPv04_PAYLOAD_SIZE_INLINE_DEVICEREBOOT;
+  if (current_rdcpv04_message.header.rdcp_payload_length != RDCPv04_SIGNATURE_LENGTH + cmd_payload_len)
+  {
+    serial_writeln("WARNING: Payload size of received RDCP Device Reboot is invalid - ignoring");
+    return;
+  }
+
+  uint8_t sha[SHABUFSIZE];
+  get_inline_hash(&current_rdcpv04_message, cmd_payload_len, sha);
+  uint8_t sig[SIGBUFSIZE];
+  for (int i=COUNT_ZERO; i<RDCPv04_SIGNATURE_LENGTH; i++) sig[i] = current_rdcpv04_message.payload.data[cmd_payload_len+i];
+  bool valid_signature = schnorr_verify_signature(sha, SHABUFSIZE, sig);
+  if (!valid_signature)
+  {
+    serial_writeln("WARNING: Invalid HQ Schnorr signature for RDCP Device Reboot - ignoring");
+    return;
+  }
+
+  uint16_t nonce = current_rdcpv04_message.payload.data[0] + 256 * current_rdcpv04_message.payload.data[1];
+
+  char noncename[NONCENAMESIZE]; snprintf(noncename, NONCENAMESIZE, "rstdev");
+  if (!persistence_checkset_nonce(noncename, nonce))
+  {
+    serial_writeln("WARNING: Invalid nonce received for signed RDCP Reboot");
+    return;
+  }
+  else
+  {
+    serial_writeln("INFO: Performing reboot");
+    /* serial_writeln("DA_REBOOT"); */
+  }
+  hal_device_restart();
+  return;
+}
+
+void rdcpv04_cmd_maintenance(void)
+{
+  if (current_rdcpv04_message.header.destination != cfg.rdcp_address) return; // respond to personal device maintenance only
+
+  uint8_t cmd_payload_len = RDCPv04_PAYLOAD_SIZE_INLINE_MAINTENANCE;
+  if (current_rdcpv04_message.header.rdcp_payload_length != RDCPv04_SIGNATURE_LENGTH + cmd_payload_len)
+  {
+    serial_writeln("WARNING: Payload size of received RDCP Device Maintenance is invalid - ignoring");
+    return;
+  }
+
+  uint8_t sha[SHABUFSIZE];
+  get_inline_hash(&current_rdcpv04_message, cmd_payload_len, sha);
+  uint8_t sig[SIGBUFSIZE];
+  for (int i=COUNT_ZERO; i<RDCPv04_SIGNATURE_LENGTH; i++) sig[i] = current_rdcpv04_message.payload.data[cmd_payload_len+i];
+  bool valid_signature = schnorr_verify_signature(sha, SHABUFSIZE, sig);
+  if (!valid_signature)
+  {
+    serial_writeln("WARNING: Invalid HQ Schnorr signature for RDCP Maintenance - ignoring");
+    return;
+  }
+
+  uint16_t nonce = current_rdcpv04_message.payload.data[0] + 256 * current_rdcpv04_message.payload.data[1];
+
+  char noncename[NONCENAMESIZE]; snprintf(noncename, NONCENAMESIZE, "rstdev");
+  if (!persistence_checkset_nonce(noncename, nonce))
+  {
+    serial_writeln("WARNING: Invalid nonce received for signed RDCP Maintenance");
+    return;
+  }
+  else
+  {
+    serial_writeln("INFO: Starting DA Maintenance mode");
+    serial_writeln("DA_MAINTENANCE");
+    serial_bluetooth_enable();
+  }
+
+  return;
+}
+
+void rdcpv04_cmd_infrastructure_reset(void)
+{
+  uint8_t cmd_payload_len = RDCPv04_PAYLOAD_SIZE_INLINE_INFRARESET;
+  if (current_rdcpv04_message.header.rdcp_payload_length != RDCPv04_SIGNATURE_LENGTH + cmd_payload_len)
+  {
+    serial_writeln("WARNING: Payload size of received RDCP Infrastructure Reset is invalid - ignoring");
+    return;
+  }
+
+  uint8_t sha[SHABUFSIZE];
+  get_inline_hash(&current_rdcpv04_message, cmd_payload_len, sha);
+  uint8_t sig[SIGBUFSIZE];
+  for (int i=COUNT_ZERO; i<RDCPv04_SIGNATURE_LENGTH; i++) sig[i] = current_rdcpv04_message.payload.data[cmd_payload_len+i];
+  bool valid_signature = schnorr_verify_signature(sha, SHABUFSIZE, sig);
+  if (!valid_signature)
+  {
+    serial_writeln("WARNING: Invalid HQ Schnorr signature for RDCP Infrastructure Reset - ignoring");
+    return;
+  }
+
+  uint16_t nonce = current_rdcpv04_message.payload.data[0] + 256 * current_rdcpv04_message.payload.data[1];
+
+  char noncename[NONCENAMESIZE]; snprintf(noncename, NONCENAMESIZE, "rstinfra");
+  if (!persistence_checkset_nonce(noncename, nonce))
+  {
+    serial_writeln("WARNING: Invalid nonce received for signed RDCP Infrastructure Reset");
+    return;
+  }
+  else
+  {
+    serial_writeln("INFO: Performing Infrastructure Reset, rebooting in 3 minutes");
+    /* serial_writeln("DA_INFRASTRUCTURE_RESET"); */
+  }
+
+  reboot_requested = my_millis() + 3 * MINUTES_TO_MILLISECONDS; // Reboot after 3 minutes
+  seqnr_reset_requested = true; // Reset sequence numbers on infrastructure reset
+
+  return;
+}
+
+void rdcpv04_derive_infrastructure_status_from_oa(void)
+{
+  /* Ignore private OAs as they are encrypted and we cannot extract the subheader */
+  if ((current_rdcpv04_message.header.destination == RDCPv04_BROADCAST_ADDRESS) ||
+     ((current_rdcpv04_message.header.destination >= RDCPv04_ADDRESS_MULTICAST_LOWERBOUND) && 
+      (current_rdcpv04_message.header.destination <= RDCPv04_ADDRESS_MULTICAST_UPPERBOUND)))
+  {
+    /* RDCP v0.4 OAs have a subheader, and thus the OA subtype is the first byte of the RDCP Payload */
+    uint8_t oatype = current_rdcpv04_message.payload.data[0];
+    if (oatype == RDCPv04_MSGTYPE_OA_SUBTYPE_NONCRISIS)  cfg.infrastructure_status = RDCPv04_INFRASTRUCTURE_MODE_NONCRISIS;
+    if (oatype == RDCPv04_MSGTYPE_OA_SUBTYPE_CRISIS_TXT) cfg.infrastructure_status = RDCPv04_INFRASTRUCTURE_MODE_CRISIS;
+  }
+  return;
+}
+
+void rdcpv04_cmd_oa_reset(void)
+{
+  if (current_rdcpv04_message.header.rdcp_payload_length != RDCPv04_SIGNATURE_LENGTH)
+  {
+    serial_writeln("WARNING: Payload size of received RDCP OA Reset is invalid - ignoring");
+    return;
+  }
+
+  uint8_t sha[SHABUFSIZE];
+  get_inline_hash(&current_rdcpv04_message, 0, sha);
+  uint8_t sig[SIGBUFSIZE];
+  for (int i=COUNT_ZERO; i<RDCPv04_SIGNATURE_LENGTH; i++) sig[i] = current_rdcpv04_message.payload.data[0+i];
+  bool valid_signature = schnorr_verify_signature(sha, SHABUFSIZE, sig);
+  if (!valid_signature)
+  {
+    serial_writeln("WARNING: Invalid HQ Schnorr signature for RDCP OA Reset - ignoring");
+    return;
+  }
+
+  /* serial_writeln("DA_OA_RESET"); */
+  /* We do not handle OAs in this implementation yet, so there is nothing to do for an OA RESET yet either. */
+  return;
+}
+
+void rdcpv04_check_heartbeat(void)
+{
+    if (cfg.heartbeat_interval == 0) return; // Heartbeat-sending disabled
+
+    if (last_heartbeat_sent == TIMESTAMP_ZERO)
+    { // Set initial delay for heartbeat messages
+      // (intended to evenly spread heartbeat messages after scenario-wide device resets)
+      last_heartbeat_sent = 4 * (cfg.rdcp_address & 0x0FFF) * 161 + ((cfg.rdcp_address >> 24) & 0x0F) * 161;
+    }
+
+    int64_t now = my_millis();
+    if (last_heartbeat_sent + cfg.heartbeat_interval < now)
+    {
+        /* Don't even schedule a heartbeat when channel is currently busy. */
+        if (scheduler_get_num_txq_entries() > 1)
+        {
+            serial_writeln("INFO: Postponing heartbeat by 5 minutes due to busy channel");
+            last_heartbeat_sent += 5 * MINUTES_TO_MILLISECONDS;
+            return;
+        }
+
+        last_heartbeat_sent = now;
+        if (cfg.heartbeat_channel == NO_CHANNEL) return;
+        serial_writeln("INFO: Preparing to send Heartbeat");
+
+        prepared_rdcpv04_message.header.destination = RDCPv04_HQ_MULTICAST_ADDRESS;
+        prepared_rdcpv04_message.header.message_type = RDCPv04_MSGTYPE_HEARTBEAT;
+        prepared_rdcpv04_message.header.sequence_number = RDCPv04_SEQUENCENR_SPECIAL_ZERO; // for MG heartbeats
+
+        /* With no OA handling and roaming implemented yet, fill with plausible defaults to avoid periodics */
+        prepared_rdcpv04_message.payload.data[0] = 0xFFFF % 256;
+        prepared_rdcpv04_message.payload.data[1] = 0xFFFF / 256;
+        prepared_rdcpv04_message.payload.data[2] = cfg.default_entry_point % 256;
+        prepared_rdcpv04_message.payload.data[3] = cfg.default_entry_point / 256;
+        prepared_rdcpv04_message.header.rdcp_payload_length = 4;
+
+        prepared_rdcpv04_message.header.relay1 = RDCPv04_HEADER_RELAY_MAGIC_NONE; // for MG heartbeats
+        prepared_rdcpv04_message.header.relay2 = RDCPv04_HEADER_RELAY_MAGIC_NONE;
+        prepared_rdcpv04_message.header.relay3 = RDCPv04_HEADER_RELAY_MAGIC_NONE;
+        rdcpv04_prepare_response_header(OPTION_ENABLED); // needs pre-configured special sequence number
+        rdcpv04_pass_response_to_scheduler(cfg.heartbeat_channel, OPTION_ENABLED);
+    }
+
+    return;
+}
+
+void rdcpv04_cmd_check_rtc(void)
+{
+  if (!rtc_active) return;
+  bool one_active = false;
+  for (int i=COUNT_ZERO; i<MAX_RTC; i++)
+      if (RTC[i].active) one_active = true;
+  if (!one_active) rtc_active = false;
+  else
+  {
+    for (int i=COUNT_ZERO; i<MAX_RTC; i++)
+    {
+      if ((RTC[i].active) && (my_millis() > RTC[i].alarm))
+      {
+        RTC[i].active = false;
+        if (RTC[i].restart) reboot_requested = my_millis() + 5 * RTC[i].restart * MINUTES_TO_MILLISECONDS;
+        char s[SERIALINPUTLEN];
+        snprintf(s, SERIALINPUTLEN, "%s%s", 
+                 RTC[i].persist != 0 ? "+" : "",
+                 RTC[i].rtc);
+        serial_process_command(s, "RTC: ");
+      }
+    }
+  }
+  return;
+}
+
+void rdcpv04_cmd_rtc(void)
+{
+    uint8_t sha[SHABUFSIZE];
+    get_inline_hash(&current_rdcpv04_message, current_rdcpv04_message.header.rdcp_payload_length - RDCPv04_SIGNATURE_LENGTH, sha);
+    uint8_t sig[SIGBUFSIZE];
+    for (int i=COUNT_ZERO; i<RDCPv04_SIGNATURE_LENGTH; i++) 
+      sig[i] = current_rdcpv04_message.payload.data[current_rdcpv04_message.header.rdcp_payload_length - RDCPv04_SIGNATURE_LENGTH + i];
+    bool valid_signature = schnorr_verify_signature(sha, SHABUFSIZE, sig);
+    if (!valid_signature)
+    {
+      serial_writeln("WARNING: Invalid HQ Schnorr signature for RDCP RTC - ignoring");
+      return;
+    }
+
+    for (int i=COUNT_ZERO; i<MAX_RTC; i++)
+    {
+        if (RTC[i].active == false)
+        {
+            RTC[i].active  = true;
+            RTC[i].alarm   = my_millis() + current_rdcpv04_message.payload.data[0] * MINUTES_TO_MILLISECONDS;
+            RTC[i].restart = current_rdcpv04_message.payload.data[1];
+            RTC[i].persist = current_rdcpv04_message.payload.data[2];
+            for (int j=COUNT_ZERO; j<current_rdcpv04_message.header.rdcp_payload_length - RDCPv04_SIGNATURE_LENGTH - RDCPv04_PAYLOAD_SIZE_INLINE_RTC; j++)
+            {
+                RTC[i].rtc[j+0] = current_rdcpv04_message.payload.data[j+RDCPv04_PAYLOAD_SIZE_INLINE_RTC];
+                RTC[i].rtc[j+1] = ZEROBYTE;
+            }
+            break;
+        }
+    }
+    rtc_active = true;
+    return;
+}
+
+void rdcpv04_process_incoming_message(void)
+{
+  uint8_t mt = current_rdcpv04_message.header.message_type;
+
+  if (mt == RDCPv04_MSGTYPE_ECHO_REQUEST)                 rdcpv04_cmd_send_echo_response();
+  else if (mt == RDCPv04_MSGTYPE_TIMESTAMP)               rdcpv04_cmd_timestamp();
+  else if (mt == RDCPv04_MSGTYPE_DEVICE_RESET)            rdcpv04_cmd_device_reset();
+  else if (mt == RDCPv04_MSGTYPE_DEVICE_REBOOT)           rdcpv04_cmd_device_reboot();
+  else if (mt == RDCPv04_MSGTYPE_MAINTENANCE)             rdcpv04_cmd_maintenance();
+  else if (mt == RDCPv04_MSGTYPE_INFRASTRUCTURE_RESET)    rdcpv04_cmd_infrastructure_reset();
+  else if (mt == RDCPv04_MSGTYPE_OFFICIAL_ANNOUNCEMENT)   rdcpv04_derive_infrastructure_status_from_oa();
+  else if (mt == RDCPv04_MSGTYPE_RTC)                     rdcpv04_cmd_rtc();
+  else if (mt == RDCPv04_MSGTYPE_RESET_ALL_ANNOUNCEMENTS) rdcpv04_cmd_oa_reset();
+  return;
 }
 
 /* EOF rdcp-modem-rdcp-v04.cpp */

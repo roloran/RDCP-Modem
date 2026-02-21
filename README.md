@@ -132,17 +132,25 @@ The commands to control the firmware via Serial/UART are intended to be used by 
     - `c` sets Serial0 legacy mode (`1` = enable, `0` = disable). Should be enabled for MERLIN HQ use only.
     - `d` sets HQ mode(`1` = enable, `0` = disable). Should be enabled for MERLIN HQ use.
 
-- `SET RDCP NUMRELAYS n` sets the number of RDCP Relays in the active RDCP scenario to `n`.
+- `SET RDCP NUMRELAYS n` sets the number of RDCP Relays in the active RDCP v0.4 scenario to `n`.
 
-- `SET RDCP ADDR n` sets the device's RDCP address to `n` (must be up to 4 hex digits).
+- `SET RDCP ADDR n` sets the device's RDCP v0.4 address to `n` (must be up to 4 hex digits).
 
-- `SET RDCP HQPUBKEY aaa` sets the HQ's public Schnorr key
+- `SET RDCP HQPUBKEY aaa` sets the HQ's public Schnorr key.
 
-- `SET RDCP HQAESKEY aaa` sets the shared secret (AES key) when communicating with the HQ
+- `SET RDCP HQAESKEY aaa` sets the shared secret (AES key) when communicating with the HQ.
 
-- `SET RDCP MYPUBKEY aaa` sets this device's public Schnorr key
+- `SET RDCP MYPUBKEY aaa` sets this device's public Schnorr key.
 
-- `SET RDCP MYPRIVKEY aaa` sets this device's private Schnorr key
+- `SET RDCP MYPRIVKEY aaa` sets this device's private Schnorr key.
+
+- `SET RDCP ENTRYPOINT a` sets the RDCP v0.4 Entry Point to `a`.
+
+- `SET RDCP RELAYCIRE abc` sets the three v0.4 relay identifiers `a`, `b`, `c` in CIRE direction.
+
+- `SET RDCP RELAYOA abc` sets the three v0.4 relay identifiers `a`, `b`, `c` in OA direction.
+
+- `SET RDCP MULTICAST a b c d e` sets the five RDCP v0.4 multicast groups `a` to `e` (hex numbers each, must be five).
 
 - `SERIAL text` sends `text` to the Serial interface without the Serial prefix. Can be useful if a device, such as an RDCP v0.4 DA, is connected to Serial.
 

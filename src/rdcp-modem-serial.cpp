@@ -800,6 +800,48 @@ void serial_process_command(const char* s, const char* processing_mode)
       snprintf(serial_info, INFOLEN, "INFO: Changed this device's RDCP address to %04X", (unsigned int) cfg.rdcp_address);
       serial_writeln(serial_info);
     }
+    else if (nsa_startsWith(p1, "ENTRYPOINT "))
+    {
+      nsa_substring(p1, 11);
+      uint16_t new_entry_point = strtol(nsa.result, NULL, BASE16);
+      cfg.default_entry_point = new_entry_point;
+      snprintf(serial_info, INFOLEN, "INFO: Changed this device's RDCP Entry Point to %04X", (unsigned int) cfg.default_entry_point);
+      serial_writeln(serial_info);
+    }
+    else if (nsa_startsWith(p1, "RELAYCIRE "))
+    {
+      nsa_substring(p1, 10);
+      uint32_t cire_relays = strtol(nsa.result, NULL, BASE16);
+      cfg.cirerelays[0] = (cire_relays & 0x00000F00) >> 8;
+      cfg.cirerelays[1] = (cire_relays & 0x000000F0) >> 4;
+      cfg.cirerelays[2] = (cire_relays & 0x0000000F);
+      snprintf(serial_info, INFOLEN, "INFO: Changed this device's CIRE relay peers to %01X, %01X, %01X", 
+               cfg.cirerelays[0], cfg.cirerelays[1], cfg.cirerelays[2]);
+      serial_writeln(serial_info);
+    }
+    else if (nsa_startsWith(p1, "RELAYOA "))
+    {
+      nsa_substring(p1, 8);
+      uint32_t oa_relays = strtol(nsa.result, NULL, BASE16);
+      cfg.oarelays[0] = (oa_relays & 0x00000F00) >> 8;
+      cfg.oarelays[1] = (oa_relays & 0x000000F0) >> 4;
+      cfg.oarelays[2] = (oa_relays & 0x0000000F);
+      snprintf(serial_info, INFOLEN, "INFO: Changed this device's OA relay peers to %01X, %01X, %01X", 
+               cfg.oarelays[0], cfg.oarelays[1], cfg.oarelays[2]);
+      serial_writeln(serial_info);
+    }
+    else if (nsa_startsWith(p1, "MULTICAST "))
+    {
+      nsa_strsplice(p1);
+      cfg.multicast[0] = strtol(nsa.part[1], NULL, BASE16);
+      cfg.multicast[1] = strtol(nsa.part[2], NULL, BASE16);
+      cfg.multicast[2] = strtol(nsa.part[3], NULL, BASE16);
+      cfg.multicast[3] = strtol(nsa.part[4], NULL, BASE16);
+      cfg.multicast[4] = strtol(nsa.part[5], NULL, BASE16);
+      snprintf(serial_info, INFOLEN, "INFO: Set multicast addresses to %04X, %04X, %04X, %04X, %04X",
+        cfg.multicast[0], cfg.multicast[1], cfg.multicast[2], cfg.multicast[3], cfg.multicast[4]);
+      serial_writeln(serial_info);
+    }
     else if (nsa_startsWith(p1, "HQPUBKEY "))
     {
       nsa_substring(p1, 9);

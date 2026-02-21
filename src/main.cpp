@@ -14,6 +14,7 @@
 #include "rdcp-modem-hal.h"
 #include "rdcp-modem-scheduler.h"
 #include "rdcp-modem-plugin.h"
+#include "rdcp-modem-timer.h"
 
 extern device_config cfg;
 
@@ -64,7 +65,7 @@ void setup()
 
 void loop() 
 {
-  delay(MINIMUM_DELAY);             // For background tasks such as watchdogs
+  delay(MINIMUM_DELAY);             // For hardware background tasks such as watchdogs
 
   if (cfg.radios_initialized)
   {
@@ -82,7 +83,7 @@ void loop()
   }
 
   plugin_loop();                   // Peridically let any plugins do their work
-
+  timer_check();                   // Periodically check any timers for actions to perform
   hal_memory_check();              // Restart device if running out of memory
 
   return;

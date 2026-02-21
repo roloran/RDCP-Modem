@@ -46,6 +46,8 @@
 #define RDCPv04_MSGTYPE_HEARTBEAT               0x31
 #define RDCPv04_MSGTYPE_RTC                     0x32
 
+#define RDCPv04_MSGTYPE_TUNNEL                  0x40
+
 #define RDCPv04_TIMESLOT_BUFFERTIME 1000
 
 #define RDCPv04_NRT_LEVEL_LOW    0
@@ -59,6 +61,74 @@
 
 #define RDCPv04_EP_HEADSTART_DELAY    7500
 #define RDCPv04_RELAY1_NO_EP 0xE0
+
+#define RDCPv04_HEADER_RELAY_MAGIC_EP   0xEE
+#define RDCPv04_HEADER_RELAY_MAGIC_NONE 0xEE
+
+#define RDCPv04_SIGNATURE_LENGTH 65
+#define RDCPv04_PAYLOAD_SIZE_INLINE_TIMESTAMP 6
+#define RDCPv04_PAYLOAD_SIZE_ECHO_RESPONSE 0
+#define RDCPv04_PAYLOAD_SIZE_ACK_UNSIGNED        3
+#define RDCPv04_PAYLOAD_SIZE_ECHO_RESPONSE       0
+#define RDCPv04_PAYLOAD_SIZE_INLINE_BLOCKDEVICE  4
+#define RDCPv04_PAYLOAD_SIZE_INLINE_TIMESTAMP    6
+#define RDCPv04_PAYLOAD_SIZE_INLINE_DEVICERESET  2
+#define RDCPv04_PAYLOAD_SIZE_INLINE_DEVICEREBOOT 2
+#define RDCPv04_PAYLOAD_SIZE_INLINE_MAINTENANCE  2
+#define RDCPv04_PAYLOAD_SIZE_INLINE_INFRARESET   2
+#define RDCPv04_PAYLOAD_SIZE_INLINE_RTC          3
+#define RDCPv04_PAYLOAD_SIZE_SUBHEADER_CIRE      3
+#define RDCPv04_PAYLOAD_SIZE_FANM                2
+#define RDCPv04_PAYLOAD_SIZE_FETCHONE            2
+#define RDCPv04_PAYLOAD_SIZE_MG_HEARTBEAT        4
+
+#define RDCPv04_BROADCAST_ADDRESS    0xFFFF
+#define RDCPv04_HQ_MULTICAST_ADDRESS 0x00FF
+
+#define RDCPv04_ADDRESS_MULTICAST_LOWERBOUND 0xB000
+#define RDCPv04_ADDRESS_MULTICAST_UPPERBOUND 0xBFFF
+
+#define RDCPv04_ADDRESS_HQ_LOWERBOUND    0x0001 
+#define RDCPv04_ADDRESS_HQ_UPPERBOUND    0x00FF
+#define RDCPv04_ADDRESS_SPECIAL_ZERO     0x0000
+#define RDCPv04_OA_REFNR_SPECIAL_ZERO    0x0000
+#define RDCPv04_SEQUENCENR_SPECIAL_ZERO  0x0000
+#define RDCPv04_ADDRESS_SPECIAL_MAX      0xFFFF
+
+#define RDCPv04_CRC_SIZE 2
+#define RDCPv04_AESTAG_SIZE 16
+
+/*
+ * Subtypes for OFFICIAL ANNOUNCEMENTs
+ */
+#define RDCPv04_MSGTYPE_OA_SUBTYPE_RESERVED     0x00
+#define RDCPv04_MSGTYPE_OA_SUBTYPE_NONCRISIS    0x10
+#define RDCPv04_MSGTYPE_OA_SUBTYPE_CRISIS_TXT   0x20
+#define RDCPv04_MSGTYPE_OA_SUBTYPE_CRISIS_GFX   0x21
+#define RDCPv04_MSGTYPE_OA_SUBTYPE_UPDATE       0x22
+#define RDCPv04_MSGTYPE_OA_SUBTYPE_FEEDBACK     0x30
+#define RDCPv04_MSGTYPE_OA_SUBTYPE_INQUIRY      0x31
+  
+/*
+ * Subtypes for CITIZEN REPORTs
+ */
+#define RDCPv04_MSGTYPE_CIRE_SUBTYPE_EMERGENCY  0x00
+#define RDCPv04_MSGTYPE_CIRE_SUBTYPE_REQUEST    0x01
+#define RDCPv04_MSGTYPE_CIRE_SUBTYPE_RESPONSE   0x02
+  
+/*
+ * Subtypes for ACKNOWLEDGMENTs
+ */
+#define RDCPv04_ACKNOWLEDGMENT_POSITIVE         0x00
+#define RDCPv04_ACKNOWLEDGMENT_NEGATIVE         0x01
+#define RDCPv04_ACKNOWLEDGMENT_POSNEG           0x02
+
+/*
+ * RDCP Infrastructure modes 
+ */
+#define RDCPv04_INFRASTRUCTURE_MODE_NONCRISIS      0x00
+#define RDCPv04_INFRASTRUCTURE_MODE_CRISIS         0x01
+#define RDCPv04_INFRASTRUCTURE_MODE_CRISIS_NOSTAFF 0x02
 
 /**
   * Data structure for an RDCP v0.4 Header
@@ -206,6 +276,31 @@ int rdcpv04_get_sf_multiplier(uint8_t channel);
  * @param data RDCP Message to analyze
  */
 int64_t rdcpv04_get_timeslot_duration(uint8_t channel, uint8_t *data);
+
+/**
+ * Basic handling of incoming RDCP v0.4 Messages.
+ */
+void rdcpv04_process_incoming_message(void);
+
+/* RTC Handling */
+struct rtc_entry {
+    bool active     = OPTION_DISABLED;
+    int64_t alarm   = ZERO_TIMESTAMP;
+    uint8_t restart = COUNT_ZERO;
+    uint8_t persist = COUNT_ZERO;
+    char rtc[INFOLEN];
+};
+#define MAX_RTC 16
+
+/**
+ * Periodically send RDCP v0.4 heartbeats.
+ */
+void rdcpv04_check_heartbeat(void);
+
+/**
+ * Periodically check for active RTCs.
+ */
+void rdcpv04_cmd_check_rtc(void);
 
 #endif 
 

@@ -46,6 +46,9 @@
 #define LEN32           32
 #define KEYLENTEXT     256
 #define KEYLENAES       32
+#define SHABUFSIZE      32
+#define SIGBUFSIZE     128 
+#define NONCENAMESIZE   64
 
 // Maximum payload size in bytes of a LoRa packet
 #define MAX_LORA_PAYLOAD_SIZE 250

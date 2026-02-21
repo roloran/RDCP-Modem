@@ -86,6 +86,9 @@ void incoming_handle_current_lora_message(void)
 
     /* Stop any TX events on the current channel as long as it is busy */
     scheduler_stop_and_reschedule_on_busy_channel(current_lora_message.channel);
+
+    /* Process selected incoming RDCP v0.4 Messages */
+    rdcpv04_process_incoming_message();
   }
   else 
   {

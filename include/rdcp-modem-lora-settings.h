@@ -34,7 +34,7 @@ struct device_config
     bool     bt_enabled            = false;                   /// Bluetooth enabled
     char     bt_device_name[LEN32] = "RDCP-Modem (unnamed)";  /// Device name for Bluetooth connections
     char     serial_prefix[LEN32]  = SERIAL_PREFIX;           /// Serial prefix to use on UART output
-    int      number_of_radios      = 0;                       /// Number of radios in use
+    int      number_of_radios      = COUNT_ZERO;              /// Number of radios in use
 #ifdef USE_HELTEC_V3
 #ifdef AIR_CONTROLLER
     uint8_t  number_of_channels    = 2;                       /// Number of channels available
@@ -42,7 +42,7 @@ struct device_config
     uint8_t  number_of_channels    = 1;                       /// Number of channels available
 #endif
 #else 
-    uint8_t  number_of_channels    = 0;                        /// Number of channels available
+    uint8_t  number_of_channels    = COUNT_ZERO;               /// Number of channels available
 #endif
     bool     init_radios_on_start  = INIT_RADIOS_ON_START;     /// Automatically initialize radios on power-on
     bool     radios_initialized    = false;                    /// Have the radios been initialized? Set at run-time.
@@ -84,6 +84,16 @@ struct device_config
     uint8_t  waking_radio          = NO_REAL_RADIO;            /// Which radio has woken us from sleep?
     bool     disengage_reset_pin   = OPTION_DISABLED;          /// Disable / disengage the pull-up for SX126x RESET GPIO pins after wake-up
     bool     toggle_spi_on_sleep   = OPTION_DISABLED;          /// end() SPI before deep sleep and begin() after wake-up
+    uint64_t default_response_delay = 2000;                    /// Default delay in milliseconds before sending RDCP responses
+    bool     device_is_relay       = OPTION_DISABLED;          /// Is this device a relay?
+    uint8_t  relay_identifier      = 0x0C;                     /// Identifier for this relay (if we are a relay)
+    uint16_t oarelays[3]           = {0x0D, 0x0D, 0x0D};       /// Three other relay identifiers for OA relaying
+    uint16_t cirerelays[3]         = {0x0D, 0x0D, 0x0D};       /// Three other relay identifiers for CIRE relaying
+    uint16_t multicast[5]          = {0, 0, 0, 0, 0};          /// Own RDCP Multicast Addresses/groups
+    uint16_t default_entry_point   = 0x0200;                   /// Entry point to use by default
+    uint8_t  infrastructure_status = COUNT_ZERO;               /// RDCP Infrastructure status (crisis, non-crisis etc.)
+    int64_t  heartbeat_interval    = TIMESTAMP_ZERO * MINUTES_TO_MILLISECONDS; /// RDCP v0.4 heartbeat interval
+    int64_t  heartbeat_channel     = NO_CHANNEL;               /// Channel to send RDCP v0.4 heartbeats on
 };
 
 #endif 
