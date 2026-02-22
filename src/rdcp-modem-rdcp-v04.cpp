@@ -689,7 +689,7 @@ void rdcpv04_cmd_send_echo_response(void)
     prepared_rdcpv04_message.header.relay2 = RDCPv04_HEADER_RELAY_MAGIC_NONE;
     prepared_rdcpv04_message.header.relay3 = RDCPv04_HEADER_RELAY_MAGIC_NONE;
   }
-  rdcpv04_prepare_response_header(false);
+  rdcpv04_prepare_response_header(OPTION_DISABLED);
   rdcpv04_pass_response_to_scheduler(channel);
 
   return;
@@ -1061,4 +1061,34 @@ void rdcpv04_process_incoming_message(void)
   return;
 }
 
+void rdcpv04_tunnel(uint8_t channel, uint8_t* data, uint8_t len, uint8_t tunneltype)
+{
+  if (len == 0)
+  {
+    serial_writeln("WARNING: Refusing to tunnel empty payload");
+    return;
+  }
+  if ((channel == NO_CHANNEL) || (channel >= cfg.number_of_channels))
+  {
+    serial_writeln("WARNING: Invalid channel for tunneled message");
+    return;
+  }
+
+  prepared_rdcpv04_message.header.destination = RDCPv04_HQ_MULTICAST_ADDRESS;
+  prepared_rdcpv04_message.header.message_type = RDCPv04_MSGTYPE_TUNNEL;
+  prepared_rdcpv04_message.header.rdcp_payload_length = 2 + len; 
+
+  prepared_rdcpv04_message.payload.data[0] = 0; // Backport to RDCP v0.5 forces a single transmission of TUNNEL messages
+  prepared_rdcpv04_message.payload.data[1] = tunneltype;
+  for (int i=COUNT_ZERO; i<len; i++) prepared_rdcpv04_message.payload.data[i+2] = data[i];
+
+  prepared_rdcpv04_message.header.relay1 = (uint8_t) ((rdcpv04_getSuggestedRelay(0) & 0x000F) * 16) + (uint8_t) 0x0;
+  prepared_rdcpv04_message.header.relay2 = RDCPv04_HEADER_RELAY_MAGIC_NONE;
+  prepared_rdcpv04_message.header.relay3 = RDCPv04_HEADER_RELAY_MAGIC_NONE;
+
+  rdcpv04_prepare_response_header(OPTION_DISABLED);
+  rdcpv04_pass_response_to_scheduler(channel, OPTION_ENABLED);
+
+  return;
+}
 /* EOF rdcp-modem-rdcp-v04.cpp */

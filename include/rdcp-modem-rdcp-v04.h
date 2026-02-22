@@ -302,6 +302,20 @@ void rdcpv04_check_heartbeat(void);
  */
 void rdcpv04_cmd_check_rtc(void);
 
+#define TUNNEL_TYPE_LORAWAN     0
+#define TUNNEL_TYPE_IPv4        1
+#define TUNNEL_TYPE_IPv6        2
+#define TUNNEL_TYPE_LOCALSENSOR 3
+
+/**
+ * Send an RDCP v0.4 TUNNEL message (backported from RDCP v0.5) to the HQ multicast address.
+ * @param channel Channel to schedule the tunneled message for; note that a radio must be switched to this channel before of after using this function to have it sent.
+ * @param data Binary data to be tunneled, max. 182 bytes for RDCP v0.4
+ * @param len Length of `data`, i.e., number of bytes of the tunneled payload
+ * @param tunneltype Tunneled payload type, e.g., TUNNEL_TYPE_LORAWAN or TUNNEL_TYPE_LOCALSENSOR
+ */
+void rdcpv04_tunnel(uint8_t channel, uint8_t* data, uint8_t len, uint8_t tunneltype);
+
 #endif 
 
 /* EOF rdcp-modem-rdcp-v04.h */
