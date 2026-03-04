@@ -4,6 +4,8 @@
 
 SchnorrSigCtx ssc;
 bool ssc_initialized = false;
+SchnorrSigVerify ssv = SchnorrSigVerify();
+bool ssv_initialized = false;
 
 extern device_config cfg; 
 
@@ -85,16 +87,21 @@ int schnorr_create_signature(uint8_t *data, uint8_t datalen, uint8_t *targetbuff
 bool schnorr_verify_signature(uint8_t *data, uint8_t datalen, uint8_t *signature)
 {
   schnorr_init_ctx();
+  int res;
 
-  SchnorrSigVerify ssv = SchnorrSigVerify();
-  int res = ssv.init(&ssc, (char*) cfg.rdcp_hqpubkey);
-                               
-  if (res != RESULT_OK)
+  if (ssv_initialized == false)
   {
-    char msg[LONGINFOLEN];
-    snprintf(msg, LONGINFOLEN, "ERROR: schnorr_verify_signature() could not initialize (res %d) with HQ public key %s", res, cfg.rdcp_hqpubkey);
-    serial_writeln(msg);
-    return false;
+    res = ssv.init(&ssc, (char*) cfg.rdcp_hqpubkey);
+                               
+    if (res != RESULT_OK)
+    {
+      char msg[LONGINFOLEN];
+      snprintf(msg, LONGINFOLEN, "ERROR: schnorr_verify_signature() could not initialize (res %d) with HQ public key %s", res, cfg.rdcp_hqpubkey);
+      serial_writeln(msg);
+      return false;
+    }
+
+    ssv_initialized = true;
   }
 
   struct SchnorrSigCtx::signature sig;
