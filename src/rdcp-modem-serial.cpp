@@ -1042,10 +1042,11 @@ void serial_process_command(const char* s, const char* processing_mode)
       // TXSCHED 12345 base64content
       // 012345678
       nsa_strsplice(line);
-      tx_forced_time = strtol(nsa.part[1], NULL, BASE10);
+      /* MERLIN HQ uses 'TXSCHED 10' for sending messages, but we need to consider CFEst in communication with EP */
+      if (cfg.hq_mode == OPTION_DISABLED) tx_forced_time = strtol(nsa.part[1], NULL, BASE10);
       nsa_strtrim(nsa.part[2]);
       strncpy(serial_p, nsa.result, SERIALINPUTLEN);
-      tx_scheduling_mode = SCHEDULING_MODE_FIXED_TIME;
+      if (cfg.hq_mode == OPTION_DISABLED) tx_scheduling_mode = SCHEDULING_MODE_FIXED_TIME;
     }
     else if (nsa_startsWith(line_uppercase, "TXCF "))
     {
