@@ -1,0 +1,29 @@
+{
+  "name": "mbedtls-vendored",
+  "version": "0.0.1",
+  "build": {
+    "includeDir": "include",
+    "srcDir": "library",
+    "srcFilter": [
+      "+<aes.c>",
+      "+<bignum.c>",
+      "+<bignum_core.c>",
+      "+<constant_time.c>",
+      "+<ecp.c>",
+      "+<ecp_curves.c>",
+      "+<ctr_drbg.c>",
+      "+<entropy.c>",
+      "+<md.c>",
+      "+<md_wrap.c>",
+      "+<sha256.c>",
+      "+<sha512.c>",
+      "+<sha1.c>",
+      "+<md5.c>",
+      "+<ripemd160.c>",
+      "+<sha3.c>",
+      "+<platform.c>",
+      "+<platform_util.c>",
+      "+<entropy_poll.c>"
+    ]
+  }
+}

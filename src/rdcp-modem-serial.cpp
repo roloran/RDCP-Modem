@@ -477,6 +477,13 @@ void serial_process_command(const char* s, const char* processing_mode)
                                                    , lora_spi
 #endif
                                                   ));
+#ifdef USE_DIO2_AS_RF_SWITCH_1262
+      sx1262_radios[radio_id_in_group]->setDio2AsRfSwitch(true);
+#endif
+#ifdef USE_RAK4631
+      sx1262_radios[radio_id_in_group]->setTCXO(1.8, 5000);
+      sx1262_radios[radio_id_in_group]->setRegulatorDCDC();
+#endif
     }
     else if (nsa_startsWith(p1, "SX1268 "))
     {
@@ -529,6 +536,13 @@ void serial_process_command(const char* s, const char* processing_mode)
                                                    , lora_spi
 #endif
                                                   ));
+#ifdef USE_DIO2_AS_RF_SWITCH_1268
+      sx1268_radios[radio_id_in_group]->setDio2AsRfSwitch(true);
+#endif
+#ifdef USE_RAK4631
+      sx1268_radios[radio_id_in_group]->setTCXO(1.8, 5000);
+      sx1268_radios[radio_id_in_group]->setRegulatorDCDC();
+#endif
     }
     else if (nsa_startsWith(p1, "INTERFACE "))
     {
