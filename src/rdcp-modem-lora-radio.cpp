@@ -824,7 +824,8 @@ void radio_loop(void)
                   serial_writeln(info_msg);
 
                   lora_queue_rx[current_channel].available = true;
-                  lora_queue_rx[current_channel].channel = i;
+                  lora_queue_rx[current_channel].channel = current_channel;
+                  lora_queue_rx[current_channel].radio = i;
                   lora_queue_rx[current_channel].rssi = rx_rssi; 
                   lora_queue_rx[current_channel].snr = rx_snr; 
                   lora_queue_rx[current_channel].timestamp = my_millis();

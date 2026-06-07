@@ -682,7 +682,7 @@ void air_send_message_binary(uint8_t radio, uint8_t channel, uint8_t *payload, u
   char encodedString[encodedLength + 1];
   Base64ren.encode(encodedString, (char *) payload, length);
 
-  snprintf(air_command, AIRMSGLEN, "do_TX_ON_CHANNEL %02d %03d %s", (int) channel, (int) length, encodedString);
+  snprintf(air_command, AIRMSGLEN, "do_TX_ON_CHANNEL %02d %s", (int) channel, encodedString);
   air_fan_out(radio, channel, air_command);
   return;
 }

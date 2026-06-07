@@ -1082,6 +1082,12 @@ void rdcpv04_tunnel(uint8_t channel, uint8_t* data, uint8_t len, uint8_t tunnelt
     return;
   }
 
+  if (len > 182)
+  {
+    serial_writeln("WARNING: Tunneled data too large, ignoring");
+    return;
+  } 
+
   prepared_rdcpv04_message.header.destination = RDCPv04_HQ_MULTICAST_ADDRESS;
   prepared_rdcpv04_message.header.message_type = RDCPv04_MSGTYPE_TUNNEL;
   prepared_rdcpv04_message.header.rdcp_payload_length = 2 + len; 

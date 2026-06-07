@@ -123,6 +123,8 @@ void hal_memory_check(void)
              old_free_heap, free_heap);
     serial_writeln(hal_info);
 
+    old_free_heap = free_heap;
+
     if (free_heap < MINIMUM_FREE_RAM)
     {
       serial_writeln("ERROR: OUT OF MEMORY - restarting as countermeasure");
