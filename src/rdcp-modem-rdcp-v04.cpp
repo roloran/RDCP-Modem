@@ -37,6 +37,7 @@ extern int tx_ongoing[MAX_NUMBER_OF_CHANNELS];
 extern String line_from_file;
 extern int64_t reboot_requested;
 extern bool seqnr_reset_requested;
+extern bool current_rdcpv04_message_is_duplicate;
 
 bool     rdcpv04_csvlogfile_enabled = OPTION_DISABLED;
 uint16_t rdcpv04_csvlogfile_count   = COUNT_ZERO;
@@ -1018,6 +1019,7 @@ void rdcpv04_cmd_check_rtc(void)
 void rdcpv04_cmd_rtc(void)
 {
     uint8_t sha[SHABUFSIZE];
+    if (current_rdcpv04_message.header.rdcp_payload_length < 3 + RDCPv04_SIGNATURE_LENGTH) return;
     get_inline_hash(&current_rdcpv04_message, current_rdcpv04_message.header.rdcp_payload_length - RDCPv04_SIGNATURE_LENGTH, sha);
     uint8_t sig[SIGBUFSIZE];
     for (int i=COUNT_ZERO; i<RDCPv04_SIGNATURE_LENGTH; i++) 
@@ -1052,6 +1054,8 @@ void rdcpv04_cmd_rtc(void)
 void rdcpv04_process_incoming_message(void)
 {
   uint8_t mt = current_rdcpv04_message.header.message_type;
+
+  if (current_rdcpv04_message_is_duplicate) return;
 
   if (mt == RDCPv04_MSGTYPE_ECHO_REQUEST)                 rdcpv04_cmd_send_echo_response();
   else if (mt == RDCPv04_MSGTYPE_TIMESTAMP)               rdcpv04_cmd_timestamp();

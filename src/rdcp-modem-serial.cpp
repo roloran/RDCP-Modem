@@ -1099,6 +1099,10 @@ void serial_process_command(const char* s, const char* processing_mode)
     {
       serial_writeln("ERROR: The greatest teacher, failure is -- Yoda");
     }
+    else if ((tx_payload_type == PAYLOAD_TYPE_RDCP_V04) && (decoded_length > RDCPv04_MAX_LORA_PAYLOAD_SIZE))
+    {
+      serial_writeln("ERROR: Maximum size for RDCP Messages exceeded, check payload");
+    }
     else 
     {
 #if defined(ESP32)

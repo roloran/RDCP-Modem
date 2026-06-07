@@ -7,7 +7,8 @@
 #include "rdcp-modem-constants.h"
 
 #define RDCPv04_HEADER_SIZE      16
-#define RDCPv04_MAX_PAYLOAD_SIZE 200
+#define RDCPv04_MAX_LORA_PAYLOAD_SIZE 200
+#define RDCPv04_MAX_INNER_PAYLOAD_SIZE (RDCPv04_MAX_LORA_PAYLOAD_SIZE - RDCPv04_HEADER_SIZE)
 #define RDCPv04_CRC_SIZE         2
 
 #define RDCPv04_TIMESTAMP_ZERO          0
@@ -151,7 +152,7 @@ struct rdcpv04_header {
   * Data structure for storing the RDCP v0.4 Payload of an RDCP Message
   */
 struct rdcpv04_payload {
-  uint8_t data[RDCPv04_MAX_PAYLOAD_SIZE]; // RDCP payload must not exceed 200 bytes
+  uint8_t data[RDCPv04_MAX_INNER_PAYLOAD_SIZE]; // RDCP payload must not exceed 184 bytes
 };
   
 /**

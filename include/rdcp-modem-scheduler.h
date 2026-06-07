@@ -12,7 +12,7 @@
   */
 struct txqueue_entry {
   uint8_t channel_to_send_on = NO_CHANNEL;                         //< Channel on which the message is to be sent
-  uint8_t payload[RDCPv04_HEADER_SIZE + RDCPv04_MAX_PAYLOAD_SIZE]; //< data of the outgoing message
+  uint8_t payload[MAX_LORA_PAYLOAD_SIZE];                          //< data of the outgoing message
   uint8_t payload_length = ZERO_LENGTH;                            //< length of the outgoing message
   uint8_t scheduling_mode = SCHEDULING_MODE_CHANNEL_FREE;          //< fixed-time or channel-free scheduling
   int64_t time_setting = TIMESTAMP_ZERO;                           //< timestamp when to transmit (hard-scheduled) or timestamp when added (channel free)

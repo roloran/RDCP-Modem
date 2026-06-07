@@ -877,6 +877,7 @@ void radio_loop(void)
 void radio_send_message_binary(uint8_t radio, uint8_t channel_to_use, uint8_t *payload, uint8_t length, bool forced_switch)
 {
   if (length == 0) return; // do not send empty LoRa packets
+  if (length > MAX_LORA_PAYLOAD_SIZE) return; // do not send too long LoRa packets
 
   uint8_t channel = channel_to_use;
   if (channel == CURRENT_CHANNEL) channel = channel_used_by_radio[radio];

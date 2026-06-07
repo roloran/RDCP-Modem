@@ -287,6 +287,7 @@ void air_loop_process_message()
 
     nsa_substring(ali_text, 29);
     strncpy(ali_text_sub3, nsa.result, AIRMSGLEN);
+    ali_text_sub3[AIRMSGLEN-1] = '\0';
     int b64content_len = strlen(ali_text_sub3);
     int decoded_length = Base64ren.decodedLength(ali_text_sub3, b64content_len);
     char decoded_string[decoded_length + 1];
@@ -296,7 +297,7 @@ void air_loop_process_message()
     {
       if (i < MAX_LORA_PAYLOAD_SIZE) data[i] = decoded_string[i];
     }
-    radio_send_message_binary(ali_c, channel, data, length, FORCED_CHANNEL_SWITCH);
+    radio_send_message_binary(ali_c, channel, data, decoded_length, FORCED_CHANNEL_SWITCH); // do not used message-declared, but decoded length
   }
   else if (nsa_startsWith(ali_text, "do_CAD"))
   { // do_CAD
@@ -508,6 +509,7 @@ void air_loop_process_message()
 
     nsa_substring(ali_text, 28);
     strncpy(ali_text_sub4, nsa.result, AIRMSGLEN);
+    ali_text_sub4[AIRMSGLEN-1] = '\0';
 
     int b64content_len = strlen(ali_text_sub4);
     int decoded_length = Base64ren.decodedLength(ali_text_sub4, b64content_len);
@@ -532,9 +534,9 @@ void air_loop_process_message()
       air_radios_air_none[air_radio_id_in_group].rx_buf.snr = snr;
       air_radios_air_none[air_radio_id_in_group].rx_buf.timestamp = my_millis();
       air_radios_air_none[air_radio_id_in_group].rx_buf.radio = ali_d;
-      air_radios_air_none[air_radio_id_in_group].rx_buf.payload_length = length_in_bytes;
+      air_radios_air_none[air_radio_id_in_group].rx_buf.payload_length = decoded_length; // use decoded, not declared length
       air_radios_air_none[air_radio_id_in_group].rx_buf.channel = CURRENT_CHANNEL;
-      for (int i=0; i<length_in_bytes; i++)
+      for (int i=0; i<decoded_length; i++) // use decoded, not declared length
       {
         if (i < MAX_LORA_PAYLOAD_SIZE) air_radios_air_none[air_radio_id_in_group].rx_buf.payload[i] = data[i];
       }
@@ -546,9 +548,9 @@ void air_loop_process_message()
       air_radios_air_one[air_radio_id_in_group].rx_buf.snr = snr;
       air_radios_air_one[air_radio_id_in_group].rx_buf.timestamp = my_millis();
       air_radios_air_one[air_radio_id_in_group].rx_buf.radio = ali_d;
-      air_radios_air_one[air_radio_id_in_group].rx_buf.payload_length = length_in_bytes;
+      air_radios_air_one[air_radio_id_in_group].rx_buf.payload_length = decoded_length; // use decoded, not declared length
       air_radios_air_one[air_radio_id_in_group].rx_buf.channel = CURRENT_CHANNEL;
-      for (int i=0; i<length_in_bytes; i++)
+      for (int i=0; i<decoded_length; i++) // use decoded, not declared length
       {
         if (i < MAX_LORA_PAYLOAD_SIZE) air_radios_air_one[air_radio_id_in_group].rx_buf.payload[i] = data[i];
       }
@@ -560,9 +562,9 @@ void air_loop_process_message()
       air_radios_air_two[air_radio_id_in_group].rx_buf.snr = snr;
       air_radios_air_two[air_radio_id_in_group].rx_buf.timestamp = my_millis();
       air_radios_air_two[air_radio_id_in_group].rx_buf.radio = ali_d;
-      air_radios_air_two[air_radio_id_in_group].rx_buf.payload_length = length_in_bytes;
+      air_radios_air_two[air_radio_id_in_group].rx_buf.payload_length = decoded_length; // use decoded, not declared length
       air_radios_air_two[air_radio_id_in_group].rx_buf.channel = CURRENT_CHANNEL;
-      for (int i=0; i<length_in_bytes; i++)
+      for (int i=0; i<decoded_length; i++) // use decoded, not declared length
       {
         if (i < MAX_LORA_PAYLOAD_SIZE) air_radios_air_two[air_radio_id_in_group].rx_buf.payload[i] = data[i];
       }
@@ -575,6 +577,7 @@ void air_loop_process_message()
     // 0123456789012
     nsa_substring(ali_text, 7);
     strncpy(ali_text_sub1, nsa.result, AIRMSGLEN);
+    ali_text_sub1[AIRMSGLEN-1] = '\0';
     serial_process_command(ali_text_sub1, "AIRCMD: ");
   }
   else 
@@ -595,6 +598,7 @@ void air_loop(bool has_serial0_input, const char* serial0_input)
     {
       if (!has_serial0_input) continue;
       strncpy(air_in, serial0_input, AIRMSGLEN);
+      air_in[AIRMSGLEN-1] = '\0';
     }
     else if (i == AIRMODEM_SERIAL1)
     {
@@ -634,6 +638,7 @@ void air_loop(bool has_serial0_input, const char* serial0_input)
     ali_d = strtol(nsa.result, NULL, BASE10);
     nsa_substring(air_in, 12);
     strncpy(ali_text, nsa.result, AIRMSGLEN);
+    ali_text[AIRMSGLEN-1] = '\0';
     
     /* 
       If we are the destination of the AIR message, we have to process it.

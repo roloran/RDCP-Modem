@@ -477,6 +477,12 @@ bool scheduler_enqueue(uint8_t channel, uint8_t payload_type, uint8_t *data, uin
     scheduler_dump_txqueue();
     return false;
   }
+
+  if (len > RDCPv04_MAX_LORA_PAYLOAD_SIZE)
+  {
+    serial_writeln("WARNING: Scheduled message would exceed maximum allowed LoRa packet payload size, refusing");
+    return false;
+  }
   
   int64_t now = my_millis();
 

@@ -38,15 +38,18 @@ bool incoming_initialized = OPTION_DISABLED;
 
 uint8_t incoming_determine_payload_type(void)
 {
-  if (current_lora_message.payload_length >= RDCPv04_HEADER_SIZE)
+  if ((current_lora_message.payload_length >= RDCPv04_HEADER_SIZE) &&
+      (current_lora_message.payload_length <= RDCPv04_MAX_LORA_PAYLOAD_SIZE))
   {
     /* Copy the message to process into the target data structure */
     memcpy(&current_rdcpv04_message.header, &current_lora_message.payload, RDCPv04_HEADER_SIZE);
     for (int i=RDCPv04_HEADER_SIZE; i<current_lora_message.payload_length; i++) 
       current_rdcpv04_message.payload.data[i-RDCPv04_HEADER_SIZE] = current_lora_message.payload[i];
     
-    /* Verify the CRC-16 checksum */
-    if (rdcpv04_check_crc_in(current_lora_message.payload_length))
+    /* Verify the CRC-16 checksum and payload length consistency */
+    if (rdcpv04_check_crc_in(current_lora_message.payload_length) && 
+       (current_rdcpv04_message.header.rdcp_payload_length == 
+        current_lora_message.payload_length - RDCPv04_HEADER_SIZE))
       return PAYLOAD_TYPE_RDCP_V04;
   }
 
