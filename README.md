@@ -152,6 +152,8 @@ The commands to control the firmware via Serial/UART are intended to be used by 
 
 - `SET RDCP MULTICAST a b c d e` sets the five RDCP v0.4 multicast groups `a` to `e` (hex numbers each, must be five).
 
+- `SET RDCP CFESTLINK a b` links CFEst of channel `b` to sending on channel `a`, i.e., TXCF-scheduled RDCP messages will not be sent on channel `a` (e.g., uplink) unless CFEst considers channel `b` (e.g., downlink) free.
+
 - `SERIAL text` sends `text` to the Serial interface without the Serial prefix. Can be useful if a device, such as an RDCP v0.4 DA, is connected to Serial.
 
 - `SERIALP text` is the same as `SERIAL`, but includes the Serial prefix.

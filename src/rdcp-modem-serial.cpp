@@ -36,6 +36,7 @@ extern SX1262* sx1262_radios[MAX_NUMBER_OF_RADIOS];
 extern SX1268* sx1268_radios[MAX_NUMBER_OF_RADIOS];
 extern lora_message lora_queue_rx[MAX_NUMBER_OF_CHANNELS];
 extern lora_message lora_queue_tx[MAX_NUMBER_OF_CHANNELS];
+extern int channel_free_dependencies[MAX_NUMBER_OF_CHANNELS];
 
 String serial_input, bt_input, line_from_file;
 char line[SERIALINPUTLEN], line_uppercase[SERIALINPUTLEN], p1[SERIALINPUTLEN], p1u[SERIALINPUTLEN];
@@ -795,6 +796,16 @@ void serial_process_command(const char* s, const char* processing_mode)
 
       snprintf(serial_info, INFOLEN, "INFO: RDCP legacy configuration set to default radio %d, default channel %d, Serial0 legacy %c, HQ mode %c",
         (int) cfg.default_radio, (int) cfg.default_channel, cfg.serial0_legacy ? '+' : '-', cfg.hq_mode ? '+' : '-');
+      serial_writeln(serial_info);
+    }
+    else if (nsa_startsWith(p1, "CFESTLINK "))
+    {
+      nsa_strsplice(p1);
+      int channel_id = strtol(nsa.part[1], NULL, BASE10);
+      int channel_dep = strtol(nsa.part[2], NULL, BASE10);
+      channel_free_dependencies[channel_id] = channel_dep;
+      snprintf(serial_info, INFOLEN, "INFO: Changed CFEst dependency, channel %d will now not send unless channel %d is free based on CFEst",
+          channel_id, channel_dep);
       serial_writeln(serial_info);
     }
     else if (nsa_startsWith(p1, "NUMRELAYS "))

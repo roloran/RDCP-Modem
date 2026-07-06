@@ -29,6 +29,7 @@ int64_t tx_start[MAX_NUMBER_OF_CHANNELS] = { ZERO_TIMESTAMP };         //< Times
 int64_t tx_latency[MAX_NUMBER_OF_CHANNELS] = { ZERO_TIMESTAMP };       //< Message sending latency
 int retransmission_count[MAX_NUMBER_OF_CHANNELS] = { COUNT_ZERO };     //< Retransmission counter for current message
 int64_t last_tx_activity[MAX_NUMBER_OF_CHANNELS] = { ZERO_TIMESTAMP }; //< Timestamp of last TX scheduler activity
+int channel_free_dependencies[MAX_NUMBER_OF_CHANNELS] = { RDCP_INDEX_NONE }; //< If value is > -1, send on index channel only if value channel is free
 
 char sched_info[INFOLEN];
 char long_sched_info[LONGINFOLEN];
@@ -111,8 +112,19 @@ bool scheduler_loop(void)
       }
     }
 
+    /* Sometimes we are only allowed to send on one channel if another channel is free */
+    bool channel_dependency_fulfilled = true;
+    if (channel_free_dependencies[channel_id] > RDCP_INDEX_NONE)
+    {
+      uint8_t dependency_channel = channel_free_dependencies[channel_id];
+      if (now < CFEst[dependency_channel])
+      {
+        channel_dependency_fulfilled = false;
+      }
+    }
+
     /* If we did not find a hard-scheduled entry, look for other entries if channel is free */
-    if ((found_entry == RDCP_INDEX_NONE) && (now >= CFEst[channel_id]))
+    if ((found_entry == RDCP_INDEX_NONE) && (now >= CFEst[channel_id]) && channel_dependency_fulfilled)
     {
       for (int i=COUNT_ZERO; i < MAX_TXQUEUE_ENTRIES; i++)
       {
