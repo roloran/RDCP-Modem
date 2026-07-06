@@ -218,6 +218,17 @@ void rdcpv04_update_cfest_rx(uint8_t mode)
       uint8_t relay_currently_sending = current_rdcpv04_message.header.sender & 0x0F;
       int future_relays = cfg.scenario_num_relays - relay_currently_sending - THIS_ONE;
       future_timeslots = future_relays > ZERO_TIMESLOTS ? future_relays : ZERO_TIMESLOTS;
+      
+      /* Selected message types stay local to DAs and must be ignored when sent by a DA origin */
+      if ((current_rdcpv04_message.header.message_type == RDCPv04_MSGTYPE_ACK) || 
+          (current_rdcpv04_message.header.message_type == RDCPv04_MSGTYPE_ROAMING_BEACON))
+      {
+        if ((current_rdcpv04_message.header.origin < RDCPv04_ADDRESS_MG_LOWERBOUND) &&
+            (current_rdcpv04_message.header.origin >= RDCPv04_ADDRESS_BBKDA_LOWERBOUND))
+        {
+          future_timeslots = 0;
+        }
+      }
     }
     else 
     {

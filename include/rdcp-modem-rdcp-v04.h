@@ -48,6 +48,7 @@
 #define RDCPv04_MSGTYPE_RTC                     0x32
 
 #define RDCPv04_MSGTYPE_TUNNEL                  0x40
+#define RDCPv04_MSGTYPE_ROAMING_BEACON          0x41
 
 #define RDCPv04_TIMESLOT_BUFFERTIME 1000
 
