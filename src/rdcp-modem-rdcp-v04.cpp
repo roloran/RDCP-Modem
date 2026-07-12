@@ -162,6 +162,30 @@ int rdcpv04_get_sf_multiplier(uint8_t channel)
   return 1;
 }
 
+#define CFEST_PREVIOUS_CONSIDERATIONS 10
+uint16_t cfest_prevcons_origin[CFEST_PREVIOUS_CONSIDERATIONS] = { 0x0000 };
+uint16_t cfest_prevcons_seqnr[CFEST_PREVIOUS_CONSIDERATIONS]  = { 0x0000 };
+int cfest_prevcons_next_position = 0;
+
+/**
+ * Check whether we already considered a recent RDCP Message identified by Origin and SeqNr for CFEst calculation
+ */
+bool rdcpv04_checkset_cfest_previous_consideration(uint16_t origin, uint16_t seqnr)
+{
+  for (int i=0; i<CFEST_PREVIOUS_CONSIDERATIONS; i++)
+  {
+    if ((cfest_prevcons_origin[i] == origin) && 
+        (cfest_prevcons_seqnr[i]  == seqnr))
+    { // already considered this RDCP Message
+      return true;
+    }
+  }
+  cfest_prevcons_origin[cfest_prevcons_next_position] = origin;
+  cfest_prevcons_seqnr[cfest_prevcons_next_position]  = seqnr;
+  cfest_prevcons_next_position = (cfest_prevcons_next_position + 1) % CFEST_PREVIOUS_CONSIDERATIONS;
+  return false;
+}
+
 void rdcpv04_update_cfest_rx(uint8_t mode)
 {
   uint16_t airtime = airtime_in_ms(current_lora_message.channel, RDCPv04_HEADER_SIZE + current_rdcpv04_message.header.rdcp_payload_length);
@@ -215,6 +239,7 @@ void rdcpv04_update_cfest_rx(uint8_t mode)
     if ((current_rdcpv04_message.header.sender < RDCPv04_ADDRESS_MG_LOWERBOUND) && 
         (current_rdcpv04_message.header.sender >= RDCPv04_ADDRESS_BBKDA_LOWERBOUND))
     { // DA or BBK sending
+      bool previously_considered = rdcpv04_checkset_cfest_previous_consideration(current_rdcpv04_message.header.origin, current_rdcpv04_message.header.sequence_number);
       uint8_t relay_currently_sending = current_rdcpv04_message.header.sender & 0x0F;
       int future_relays = cfg.scenario_num_relays - relay_currently_sending - THIS_ONE;
       future_timeslots = future_relays > ZERO_TIMESLOTS ? future_relays : ZERO_TIMESLOTS;
@@ -227,8 +252,15 @@ void rdcpv04_update_cfest_rx(uint8_t mode)
       if ((current_rdcpv04_message.header.relay1 == RDCPv04_HEADER_RELAY_MAGIC_NONE) &&
           (current_rdcpv04_message.header.relay3 == RDCPv04_HEADER_RELAY_MAGIC_EP_ECHO))
       {
-        future_timeslots = cfg.scenario_num_relays;
-        magic_delay = RDCPv04_EP_HEADSTART_DELAY;
+        if (!previously_considered)
+        {
+          future_timeslots = cfg.scenario_num_relays;
+          magic_delay = RDCPv04_EP_HEADSTART_DELAY;
+        }
+        else 
+        {
+          future_timeslots = 0;
+        }
       }
 
       /* Selected message types stay local to DAs and must be ignored when sent by a DA origin */
@@ -237,6 +269,14 @@ void rdcpv04_update_cfest_rx(uint8_t mode)
       {
         if ((current_rdcpv04_message.header.origin < RDCPv04_ADDRESS_MG_LOWERBOUND) &&
             (current_rdcpv04_message.header.origin >= RDCPv04_ADDRESS_BBKDA_LOWERBOUND))
+        {
+          future_timeslots = 0;
+        }
+      }
+      /* Ignore Periodics */
+      if (current_rdcpv04_message.header.relay3 == RDCPv04_HEADER_RELAY_MAGIC_PERIODICS)
+      {
+        if (current_rdcpv04_message.header.origin < RDCPv04_ADDRESS_HQ_UPPERBOUND)
         {
           future_timeslots = 0;
         }
