@@ -262,6 +262,13 @@ void rdcpv04_update_cfest_rx(uint8_t mode)
           future_timeslots = 0;
         }
       }
+      else 
+      {
+        if (!previously_considered)
+        {
+          future_timeslots += 1;
+        }
+      }
 
       /* Selected message types stay local to DAs and must be ignored when sent by a DA origin */
       if ((current_rdcpv04_message.header.message_type == RDCPv04_MSGTYPE_ACK) || 
