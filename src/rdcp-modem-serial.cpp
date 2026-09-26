@@ -825,6 +825,15 @@ void serial_process_command(const char* s, const char* processing_mode)
       snprintf(serial_info, INFOLEN, "INFO: Changed this device's RDCP address to %04X", (unsigned int) cfg.rdcp_address);
       serial_writeln(serial_info);
     }
+    else if (nsa_startsWith(p1, "INTERPACKETGAP "))
+    {
+      nsa_substring(p1, 15);
+      uint32_t ipg = strtol(nsa.result, NULL, BASE10);
+      cfg.rdcp_v04_timeslot_buffertime = ipg;
+      snprintf(serial_info, INFOLEN, "INFO: Changed RDCP v04 buffer time / inter packet gap for retransmissions to %" PRIu32 " ms", 
+        cfg.rdcp_v04_timeslot_buffertime);
+      serial_writeln(serial_info);
+    }
     else if (nsa_startsWith(p1, "ENTRYPOINT "))
     {
       nsa_substring(p1, 11);
@@ -865,6 +874,16 @@ void serial_process_command(const char* s, const char* processing_mode)
       cfg.multicast[4] = strtol(nsa.part[5], NULL, BASE16);
       snprintf(serial_info, INFOLEN, "INFO: Set multicast addresses to %04X, %04X, %04X, %04X, %04X",
         cfg.multicast[0], cfg.multicast[1], cfg.multicast[2], cfg.multicast[3], cfg.multicast[4]);
+      serial_writeln(serial_info);
+    }
+    else if (nsa_startsWith(p1, "NRT "))
+    {
+      nsa_strsplice(p1);
+      cfg.rdcp_v04_nrt_low    = strtol(nsa.part[1], NULL, BASE10);
+      cfg.rdcp_v04_nrt_middle = strtol(nsa.part[2], NULL, BASE10);
+      cfg.rdcp_v04_nrt_high   = strtol(nsa.part[3], NULL, BASE10);
+      snprintf(serial_info, INFOLEN, "INFO: RDCP v0.4 number of retransmissions set to %" PRIu8 ", %" PRIu8 " and %" PRIu8,
+        cfg.rdcp_v04_nrt_low, cfg.rdcp_v04_nrt_middle, cfg.rdcp_v04_nrt_high);
       serial_writeln(serial_info);
     }
     else if (nsa_startsWith(p1, "HQPUBKEY "))

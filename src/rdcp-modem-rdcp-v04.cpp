@@ -189,16 +189,16 @@ bool rdcpv04_checkset_cfest_previous_consideration(uint16_t origin, uint16_t seq
 void rdcpv04_update_cfest_rx(uint8_t mode)
 {
   uint16_t airtime = airtime_in_ms(current_lora_message.channel, RDCPv04_HEADER_SIZE + current_rdcpv04_message.header.rdcp_payload_length);
-  uint16_t airtime_with_buffer = airtime + RDCPv04_TIMESLOT_BUFFERTIME;
+  uint16_t airtime_with_buffer = airtime + cfg.rdcp_v04_timeslot_buffertime;
 
   uint32_t remaining_current_sender_time = airtime_with_buffer * current_rdcpv04_message.header.counter;
 
-  uint8_t nrt = RDCPv04_NRT_LEVEL_LOW;
+  uint8_t nrt = cfg.rdcp_v04_nrt_low;
   uint8_t mt = current_rdcpv04_message.header.message_type;
   if ( (mt == RDCPv04_MSGTYPE_INFRASTRUCTURE_RESET) || (mt == RDCPv04_MSGTYPE_ACK) ||
-       (mt == RDCPv04_MSGTYPE_RESET_ALL_ANNOUNCEMENTS) ) nrt = RDCPv04_NRT_LEVEL_MIDDLE;
+       (mt == RDCPv04_MSGTYPE_RESET_ALL_ANNOUNCEMENTS) ) nrt = cfg.rdcp_v04_nrt_middle;
   if ( (mt == RDCPv04_MSGTYPE_OFFICIAL_ANNOUNCEMENT) || (mt == RDCPv04_MSGTYPE_CITIZEN_REPORT) ||
-       (mt == RDCPv04_MSGTYPE_SIGNATURE) ) nrt = RDCPv04_NRT_LEVEL_HIGH;
+       (mt == RDCPv04_MSGTYPE_SIGNATURE) ) nrt = cfg.rdcp_v04_nrt_high;
 
   uint32_t timeslot_duration = (nrt+1) * airtime_with_buffer;
 
@@ -369,14 +369,14 @@ int64_t rdcpv04_get_timeslot_duration(uint8_t channel, uint8_t *data)
   memcpy(&h, data, RDCPv04_HEADER_SIZE);
 
   uint16_t airtime = airtime_in_ms(channel, RDCPv04_HEADER_SIZE + h.rdcp_payload_length);
-  uint16_t airtime_with_buffer = airtime + RDCPv04_TIMESLOT_BUFFERTIME;
+  uint16_t airtime_with_buffer = airtime + cfg.rdcp_v04_timeslot_buffertime;
 
-  uint8_t nrt = RDCPv04_NRT_LEVEL_LOW;
+  uint8_t nrt = cfg.rdcp_v04_nrt_low;
   uint8_t mt = h.message_type;
   if ( (mt == RDCPv04_MSGTYPE_INFRASTRUCTURE_RESET) || (mt == RDCPv04_MSGTYPE_ACK) ||
-       (mt == RDCPv04_MSGTYPE_RESET_ALL_ANNOUNCEMENTS) ) nrt = RDCPv04_NRT_LEVEL_MIDDLE;
+       (mt == RDCPv04_MSGTYPE_RESET_ALL_ANNOUNCEMENTS) ) nrt = cfg.rdcp_v04_nrt_middle;
   if ( (mt == RDCPv04_MSGTYPE_OFFICIAL_ANNOUNCEMENT) || (mt == RDCPv04_MSGTYPE_CITIZEN_REPORT) ||
-       (mt == RDCPv04_MSGTYPE_SIGNATURE) ) nrt = RDCPv04_NRT_LEVEL_HIGH;
+       (mt == RDCPv04_MSGTYPE_SIGNATURE) ) nrt = cfg.rdcp_v04_nrt_high;
 
   duration = (nrt+1) * airtime_with_buffer;
 
@@ -602,13 +602,13 @@ uint16_t crc16_rdcpv04(uint8_t *data, uint16_t len)
  */
 uint8_t rdcpv04_get_default_retransmission_counter_for_messagetype(uint8_t mt)
 {
-  uint8_t nrt = RDCPv04_NRT_LEVEL_LOW;
+  uint8_t nrt = cfg.rdcp_v04_nrt_low;
 
   if ( (mt == RDCPv04_MSGTYPE_INFRASTRUCTURE_RESET) || (mt == RDCPv04_MSGTYPE_ACK) ||
-       (mt == RDCPv04_MSGTYPE_RESET_ALL_ANNOUNCEMENTS) ) nrt = RDCPv04_NRT_LEVEL_MIDDLE;
+       (mt == RDCPv04_MSGTYPE_RESET_ALL_ANNOUNCEMENTS) ) nrt = cfg.rdcp_v04_nrt_middle;
 
   if ( (mt == RDCPv04_MSGTYPE_OFFICIAL_ANNOUNCEMENT) || (mt == RDCPv04_MSGTYPE_CITIZEN_REPORT) ||
-       (mt == RDCPv04_MSGTYPE_SIGNATURE) ) nrt = RDCPv04_NRT_LEVEL_HIGH;
+       (mt == RDCPv04_MSGTYPE_SIGNATURE) ) nrt = cfg.rdcp_v04_nrt_high;
 
   return nrt;
 }

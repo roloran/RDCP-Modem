@@ -236,7 +236,7 @@ void scheduler_send_message_force(uint8_t radio_id, uint8_t channel)
                      txq.entries[tx_ongoing[channel]].time_setting - 
                      retransmission_count[channel] * 
                           (airtime_in_ms(channel, txq.entries[tx_ongoing[channel]].payload_length) + 
-                          RDCPv04_TIMESLOT_BUFFERTIME);
+                          cfg.rdcp_v04_timeslot_buffertime);
 
   snprintf(sched_info, INFOLEN, "INFO: TXStart for TXQ%d i%d, len %d, TSd %d ms, latency %d ms", 
       (int) channel, 
@@ -342,7 +342,7 @@ void scheduler_callback_txfin(uint8_t radio_to_use, uint8_t channel)
     */
     int64_t next_timestamp = tx_start[channel] + 
                              airtime_in_ms(channel, txq.entries[tx_ongoing[channel]].payload_length) + 
-                             RDCPv04_TIMESLOT_BUFFERTIME;
+                             cfg.rdcp_v04_timeslot_buffertime;
     next_timestamp -= RETRANSMISSION_PROCESSING_TIME;
     next_timestamp -= tx_latency[channel] < TX_LATENCY_CAP ? tx_latency[channel] : TX_LATENCY_CAP;
 

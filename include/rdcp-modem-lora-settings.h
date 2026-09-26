@@ -6,6 +6,7 @@
 #include <Arduino.h> 
 #include "rdcp-modem-hardware-settings.h"
 #include "rdcp-modem-constants.h"
+#include "rdcp-modem-rdcp-v04.h"
 
 //< Configuration settings for one LoRa channel
 struct lora_channel_config 
@@ -94,6 +95,10 @@ struct device_config
     uint8_t  infrastructure_status = COUNT_ZERO;               /// RDCP Infrastructure status (crisis, non-crisis etc.)
     int64_t  heartbeat_interval    = TIMESTAMP_ZERO * MINUTES_TO_MILLISECONDS; /// RDCP v0.4 heartbeat interval
     int64_t  heartbeat_channel     = NO_CHANNEL;               /// Channel to send RDCP v0.4 heartbeats on
+    uint32_t rdcp_v04_timeslot_buffertime = RDCPv04_TIMESLOT_BUFFERTIME;
+    uint8_t  rdcp_v04_nrt_low      = RDCPv04_NRT_LEVEL_LOW;
+    uint8_t  rdcp_v04_nrt_middle   = RDCPv04_NRT_LEVEL_MIDDLE;
+    uint8_t  rdcp_v04_nrt_high     = RDCPv04_NRT_LEVEL_HIGH;
 };
 
 #endif 
