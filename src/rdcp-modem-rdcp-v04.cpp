@@ -298,6 +298,9 @@ void rdcpv04_update_cfest_rx(uint8_t mode)
           // only apply if EP is set
           future_timeslots = cfg.scenario_num_relays;
           magic_delay = RDCPv04_EP_HEADSTART_DELAY;
+#ifdef NEUHAUS202609
+          magic_delay = TIMESTAMP_ZERO;
+#endif 
         }
       }
     }
